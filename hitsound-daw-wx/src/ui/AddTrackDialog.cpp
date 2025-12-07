@@ -1,0 +1,81 @@
+#include "AddTrackDialog.h"
+#include <wx/sizer.h>
+#include <wx/stattext.h>
+#include <wx/choice.h>
+#include <wx/slider.h>
+#include <wx/button.h>
+
+wxBEGIN_EVENT_TABLE(AddTrackDialog, wxDialog)
+    EVT_BUTTON(wxID_OK, AddTrackDialog::OnOK)
+wxEND_EVENT_TABLE()
+
+AddTrackDialog::AddTrackDialog(wxWindow* parent)
+    : wxDialog(parent, wxID_ANY, "Add Track", wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+{
+    // Initialize result
+    result.confirmed = false;
+    result.bank = SampleSet::Normal;
+    result.type = SampleType::HitNormal;
+    result.volume = 100;
+
+    wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
+    
+    // Bank
+    wxBoxSizer* bankSizer = new wxBoxSizer(wxHORIZONTAL);
+    bankSizer->Add(new wxStaticText(this, wxID_ANY, "Bank:"), 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    wxString banks[] = { "Normal", "Soft", "Drum" };
+    bankChoice = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, 3, banks);
+    bankChoice->SetSelection(0);
+    bankSizer->Add(bankChoice, 1, wxEXPAND | wxALL, 5);
+    mainSizer->Add(bankSizer, 0, wxEXPAND | wxALL, 10);
+    
+    // Type
+    wxBoxSizer* typeSizer = new wxBoxSizer(wxHORIZONTAL);
+    typeSizer->Add(new wxStaticText(this, wxID_ANY, "Type:"), 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    wxString types[] = { "Normal", "Whistle", "Clap", "Finish" };
+    typeChoice = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, 4, types);
+    typeChoice->SetSelection(0);
+    typeSizer->Add(typeChoice, 1, wxEXPAND | wxALL, 5);
+    mainSizer->Add(typeSizer, 0, wxEXPAND | wxALL, 10);
+    
+    // Volume
+    mainSizer->Add(new wxStaticText(this, wxID_ANY, "Volume:"), 0, wxLEFT | wxTOP, 15);
+    volumeSlider = new wxSlider(this, wxID_ANY, 100, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_LABELS);
+    mainSizer->Add(volumeSlider, 0, wxEXPAND | wxALL, 10);
+    
+    // Buttons
+    mainSizer->AddStretchSpacer();
+    wxBoxSizer* btnSizer = new wxBoxSizer(wxHORIZONTAL);
+    
+    wxButton* okBtn = new wxButton(this, wxID_OK, "Add");
+    wxButton* cancelBtn = new wxButton(this, wxID_CANCEL, "Cancel");
+    
+    btnSizer->AddStretchSpacer();
+    btnSizer->Add(okBtn, 0, wxALL, 5);
+    btnSizer->Add(cancelBtn, 0, wxALL, 5);
+    
+    mainSizer->Add(btnSizer, 0, wxEXPAND | wxALL, 10);
+    
+    SetSizerAndFit(mainSizer);
+    Center();
+}
+
+void AddTrackDialog::OnOK(wxCommandEvent& evt)
+{
+    result.confirmed = true;
+    
+    int bankIdx = bankChoice->GetSelection();
+    if (bankIdx == 0) result.bank = SampleSet::Normal;
+    else if (bankIdx == 1) result.bank = SampleSet::Soft;
+    else result.bank = SampleSet::Drum;
+    
+    int typeIdx = typeChoice->GetSelection();
+    if (typeIdx == 0) result.type = SampleType::HitNormal;
+    else if (typeIdx == 1) result.type = SampleType::HitWhistle;
+    else if (typeIdx == 2) result.type = SampleType::HitClap;
+    else result.type = SampleType::HitFinish;
+    
+    result.volume = volumeSlider->GetValue();
+    
+    evt.Skip(); // Let default handler close dialog
+}

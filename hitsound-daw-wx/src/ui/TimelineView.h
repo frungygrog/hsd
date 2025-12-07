@@ -1,0 +1,142 @@
+#pragma once
+#include <wx/wx.h>
+#include "../model/Project.h"
+#include <set>
+#include <utility>
+#include <vector>
+#include <map>
+#include <algorithm>
+#include "../model/Command.h"
+
+enum class ToolType
+{
+    Select = 0,
+    Draw
+};
+
+class TimelineView : public wxScrolledWindow
+{
+public:
+    TimelineView(wxWindow* parent);
+    
+    // Callback for loop changes
+    std::function<void(double start, double end)> OnLoopPointsChanged;
+    
+    void SetProject(Project* p);
+    void SetTool(ToolType tool) { currentTool = tool; }
+    void SetPlayheadPosition(double time);
+    
+    void SetGridDivisor(int divisor) { gridDivisor = divisor; Refresh(); }
+    
+    // Rendering
+    void OnPaint(wxPaintEvent& evt);
+    void OnMouseEvents(wxMouseEvent& evt);
+    void OnMouseWheel(wxMouseEvent& evt); // Custom Zoom/Scroll
+    
+    void UpdateVirtualSize();
+    
+    void SetWaveform(const std::vector<float>& peaks, double duration);
+
+    // Interaction (Public for MainFrame Menu)
+    void Undo() { undoManager.Undo(); Refresh(); } // Add Refresh just in case commands don't trigger it adequately (though they should)
+    void Redo() { undoManager.Redo(); Refresh(); }
+    
+    void CopySelection();
+    void CutSelection();
+    void PasteAtPlayhead();
+    void DeleteSelection();
+    void SelectAll();
+    
+private:
+    Project* project = nullptr;
+    ToolType currentTool = ToolType::Select;
+
+    // Undo/Redo
+    UndoManager undoManager;
+    
+    Track* lastFocusedTrack = nullptr;
+    
+    // Grid & Zoom
+    double pixelsPerSecond = 100.0;
+    int gridDivisor = 4;
+    
+    int trackHeight = 100;
+    
+    const int rulerHeight = 30;
+    const int masterTrackHeight = 100;
+    const int headerHeight = 130; // ruler + master
+    
+    double playheadPosition = 0.0;
+    bool isDraggingPlayhead = false;
+    
+    // Loop
+    double loopStart = -1.0;
+    double loopEnd = -1.0;
+    bool isDraggingLoop = false; // Dragging in ruler
+    
+    // Selection
+    std::set<std::pair<Track*, int>> selection; 
+    std::set<std::pair<Track*, int>> baseSelection; // Selection before marquee drag starts 
+    
+    // Dragging
+    bool isDragging = false;
+    wxPoint dragStartPos; // Screen coords
+    Track* dragStartTrack = nullptr;
+    double dragStartTime = 0.0;
+    
+    struct DragGhost {
+        Event evt;
+        Track* originalTrack; 
+        int originalRowIndex;
+        Track* targetTrack; // Calculated during drag
+        double originalTime;
+    };
+    std::vector<DragGhost> dragGhosts;
+    
+    // Clipboard
+    struct ClipboardItem {
+         Event evt;
+         int relativeRow; // Offset from the "top" track in selection
+         double relativeTime; // Offset from first event time
+    };
+    std::vector<ClipboardItem> clipboard;
+
+    void OnKeyDown(wxKeyEvent& evt);
+    
+    // Marquee
+    bool isMarquee = false;
+    wxPoint marqueeStartPos;
+    wxRect marqueeRect; // Normalized
+    void PerformMarqueeSelect(const wxRect& rect);
+    
+    // Waveform
+    std::vector<float> waveformPeaks;
+    double audioDuration = 0.0;
+
+    // Helpers
+    std::vector<Track*> GetVisibleTracks();
+    void ValidateHitsounds();
+    
+    const Project::TimingPoint* GetTimingPointAt(double time);
+    double SnapToGrid(double time);
+    
+    // Drag helpers
+    struct HitResult {
+        Track* visualTrack = nullptr; // The track row clicked physically
+        Track* logicalTrack = nullptr; // The actual track owning the event
+        int eventIndex = -1;
+        bool isValid() const { return logicalTrack != nullptr && eventIndex != -1; }
+    };
+    HitResult GetEventAt(const wxPoint& pos);
+
+    Track* GetTrackAtY(int y);
+    Track* GetEffectiveTargetTrack(Track* t);
+    
+    // Coordinate helpers
+    
+    // Coordinate helpers
+    int timeToX(double time) const;
+    double xToTime(int x) const;
+    
+    wxDECLARE_EVENT_TABLE();
+};
