@@ -22,6 +22,7 @@ public:
 private:
     void OnPaint(wxPaintEvent& evt);
     void OnMouseEvents(wxMouseEvent& evt);
+    void OnSize(wxSizeEvent& evt);
     
     Project* project = nullptr;
     TimelineView* timelineView = nullptr;

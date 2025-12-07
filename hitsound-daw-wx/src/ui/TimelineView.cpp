@@ -1352,7 +1352,7 @@ void TimelineView::UpdateVirtualSize()
         bool isChild = (t->name.find("%)") != std::string::npos); // Hacky check from before
         h += isChild ? 40 : 80;
     }
-    h += 200; // Bottom Padding
+    h += 400; // Bottom Padding
     
     // Maintain current position if possible? 
     // SetScrollbars resets position if we aren't careful?

@@ -11,6 +11,7 @@
 
 wxBEGIN_EVENT_TABLE(TrackList, wxPanel)
     EVT_PAINT(TrackList::OnPaint)
+    EVT_SIZE(TrackList::OnSize)
     EVT_MOUSE_EVENTS(TrackList::OnMouseEvents)
 wxEND_EVENT_TABLE()
 
@@ -48,7 +49,7 @@ int TrackList::GetTotalContentHeight() const
     
     for (const auto& t : project->tracks) calcHeight(t);
     
-    return height + 50; // Plus Add Track button space
+    return height + 400; // Plus Add Track button space
 }
 
 std::vector<Track*> TrackList::GetVisibleTracks()
@@ -171,12 +172,36 @@ void TrackList::OnPaint(wxPaintEvent& evt)
         }
 
         // Name
+        // Name
         dc.SetTextForeground(*wxBLACK);
+        int nameX = 25; // Default X
+
         if (indent > 0) 
         {
              wxFont f = dc.GetFont();
              f.SetPointSize(8);
              dc.SetFont(f);
+             
+             // Bullet Point
+             // Center vertically in the track line: y + 20 roughly?
+             // Child height is 40. Center is y+20.
+             // Text is at y+2.
+             int dotX = 12;
+             int dotY = y + 8; // Align roughly with text
+             
+             // Verify y offset? 
+             // "y" advances by height. Text drawn at y+2.
+             // Let's draw bullet at y+11 (center of text roughly)
+             
+             dc.SetBrush(wxBrush(wxColour(120, 0, 120))); // Purple/Magenta like user screenshot? User said "purple dots (see screenshot)... little gray bullet point".
+             // User Request: "I would like a little gray bullet point in the rough area where I put those purple dots"
+             // Ah, user *put* purple dots in screenshot to show me. They want GRAY bullets.
+             
+             dc.SetBrush(wxBrush(wxColour(100, 100, 100)));
+             dc.SetPen(*wxTRANSPARENT_PEN);
+             dc.DrawCircle(dotX, dotY, 3);
+             
+             nameX = 25; // Fixed offset next to bullet
         }
         else
         {
@@ -184,9 +209,10 @@ void TrackList::OnPaint(wxPaintEvent& evt)
              f.SetPointSize(10);
              f.SetWeight(wxFONTWEIGHT_BOLD);
              dc.SetFont(f);
+             nameX = 25; // Parent indent
         }
         
-        dc.DrawText(track.name, indent * 10 + 25, y + 2);
+        dc.DrawText(track.name, nameX, y + 2);
         
         // Controls
         int btnWidth = 40;
@@ -197,73 +223,130 @@ void TrackList::OnPaint(wxPaintEvent& evt)
         wxRect soloRect(5 + btnWidth + 5, btnY, btnWidth, btnHeight);
         
         // Mute/Solo - Only for Parents
+        // Mute/Solo - Only for Parents
         if (indent == 0)
         {
+            // Vertical Stack
+            // Previous height was 18. Let's make them roughly square-ish or slightly rectangular.
+            // Parent height is 80. Title uses ~20. Available ~60.
+            // Let's place nicely.
+            
             // Mute
+            wxRect muteRect(5, y + 25, 30, 20); // Width 30, Height 20
             dc.SetBrush(track.mute ? wxBrush(wxColour(100, 100, 200)) : wxBrush(wxColour(200, 200, 200)));
+            dc.SetPen(wxPen(wxColour(80, 80, 80)));
             dc.DrawRoundedRectangle(muteRect, 2);
-            dc.DrawText("Mute", muteRect.GetX() + 5, muteRect.GetY() + (indent==0?0:-2));
+            
+            wxFont btnF = dc.GetFont();
+            btnF.SetWeight(wxFONTWEIGHT_BOLD);
+            dc.SetFont(btnF);
+            dc.SetTextForeground(*wxBLACK);
+            
+            // Center 'M'
+            wxSize tz = dc.GetTextExtent("M");
+            dc.DrawText("M", muteRect.x + (muteRect.width - tz.x)/2, muteRect.y + (muteRect.height - tz.y)/2);
             
             // Solo
+            wxRect soloRect(5, y + 50, 30, 20);
             dc.SetBrush(track.solo ? wxBrush(wxColour(100, 200, 100)) : wxBrush(wxColour(200, 200, 200)));
             dc.DrawRoundedRectangle(soloRect, 2);
-            dc.DrawText("Solo", soloRect.GetX() + 5, soloRect.GetY() + (indent==0?0:-2));
+            
+            tz = dc.GetTextExtent("S");
+            dc.DrawText("S", soloRect.x + (soloRect.width - tz.x)/2, soloRect.y + (soloRect.height - tz.y)/2);
         }
         
         // Playback Controls (Volume Slider) for Child Tracks
         if (indent > 0)
         {
-             // Draw Slider
-             int sliderX = soloRect.GetRight() + 10;
-             int sliderW = 100;
+             // Draw Slider Visuals
+             // Dynamic resizing: 75% of track width
+             int sliderW = (int)(width * 0.75); // 75% of available width
+             // Centered
+             int sliderX = (width - sliderW) / 2;
+             
              int sliderH = 14;
-             wxRect sliderRect(sliderX, btnY, sliderW, sliderH);
+             int midY = btnY + sliderH / 2;
              
-             // Track Background
-             dc.SetBrush(wxBrush(wxColour(50, 50, 50)));
-             dc.SetPen(*wxTRANSPARENT_PEN);
-             dc.DrawRoundedRectangle(sliderRect, 2);
+             // 1. Thin Track
+             dc.SetPen(wxPen(wxColour(160, 160, 160), 2)); 
+             dc.DrawLine(sliderX, midY, sliderX + sliderW, midY);
              
-             // Fill based on gain (0.0 - 1.0)
-             int fillW = (int)(track.gain * sliderW);
-             if (fillW > sliderW) fillW = sliderW;
-             if (fillW < 0) fillW = 0;
+             // 2. Tick Marks (0, 20, 40, 50, 60, 80, 100)
+             dc.SetPen(wxPen(wxColour(160, 160, 160), 1));
+             int tickH = 4;
              
-             wxRect fillRect(sliderX, btnY, fillW, sliderH);
-             dc.SetBrush(wxBrush(wxColour(100, 200, 255)));
-             dc.DrawRoundedRectangle(fillRect, 2);
+             // Use a simple array for ticks
+             float ticks[] = {0.0f, 0.2f, 0.4f, 0.5f, 0.6f, 0.8f, 1.0f};
+             for (float t : ticks) {
+                 int tx = sliderX + (int)(t * sliderW);
+                 dc.DrawLine(tx, midY - tickH, tx, midY + tickH);
+             }
              
-             // Text Value
-             wxString volStr = wxString::Format("%d%%", (int)(track.gain * 100));
-             dc.SetTextForeground(*wxWHITE);
-             wxFont vFont = dc.GetFont();
-             vFont.SetPointSize(8);
-             vFont.SetWeight(wxFONTWEIGHT_NORMAL);
-             dc.SetFont(vFont);
-             dc.DrawText(volStr, sliderX + sliderW + 5, btnY);
+             // 3. Thumb (Rectangle)
+             int thumbW = 10;
+             int thumbH = 14;
+             // Map gain to [0, sliderW] relative to X
+             int thumbX = sliderX + (int)(track.gain * sliderW) - thumbW / 2;
+             
+             wxRect thumbRect(thumbX, midY - thumbH/2, thumbW, thumbH);
+             
+             // Draw Thumb
+             dc.SetBrush(wxBrush(wxColour(230, 230, 230)));
+             dc.SetPen(wxPen(wxColour(100, 100, 100)));
+             dc.DrawRoundedRectangle(thumbRect, 2);
         }
         
         // Primary Track Selector (Only for parents)
-        if (!track.children.empty())
+        if (indent == 0 && !track.children.empty())
         {
-            int primaryX = soloRect.GetRight() + 10;
-            wxRect primaryRect(primaryX, btnY, 120, btnHeight);
+            // Height 20px, Right Aligned
+            int pH = 20; 
+            int pW = 20;
+            int valW = 50;
+            int gap = 2;
+            int rightMargin = 10;
             
-            dc.SetBrush(wxBrush(wxColour(200, 200, 220)));
-            dc.DrawRoundedRectangle(primaryRect, 2);
+            // Layout: [P][ValueBox] | (Right Edge)
+            int valX = width - rightMargin - valW;
+            int pX = valX - gap - pW;
+            int pY = y + 25; // Same Y as before (aligned with Mute button)
             
-            wxString primaryName = "Primary: <None>";
+            // 1. P Label
+            wxRect pLabelRect(pX, pY, pW, pH);
+            dc.SetBrush(wxBrush(wxColour(60, 60, 60))); // Dark inactive
+            dc.SetPen(wxPen(wxColour(80, 80, 80)));
+            dc.DrawRoundedRectangle(pLabelRect, 2);
+            
+            dc.SetTextForeground(*wxWHITE);
+            wxSize tz = dc.GetTextExtent("P");
+            dc.DrawText("P", pLabelRect.x + (pLabelRect.width - tz.x)/2, pLabelRect.y + (pLabelRect.height - tz.y)/2);
+            
+            // 2. Value Box
+            wxRect valRect(valX, pY, valW, pH);
+            dc.SetBrush(wxBrush(wxColour(220, 220, 220)));
+            dc.SetPen(wxPen(wxColour(100, 100, 100)));
+            dc.DrawRoundedRectangle(valRect, 2);
+            
+            // Text: % of primary
+            wxString valStr = "---";
             if (track.primaryChildIndex >= 0 && track.primaryChildIndex < (int)track.children.size())
             {
-                primaryName = "Primary: " + track.children[track.primaryChildIndex].name;
+                int g = (int)(track.children[track.primaryChildIndex].gain * 100.0f);
+                valStr = wxString::Format("%d%%", g);
             }
             
-            // Clip name
-             wxString clippedName = primaryName;
-             if (clippedName.Length() > 15) clippedName = clippedName.substr(0, 12) + "...";
+            dc.SetTextForeground(*wxBLACK);
+            tz = dc.GetTextExtent(valStr);
+            dc.DrawText(valStr, valRect.x + (valRect.width - tz.x)/2, valRect.y + (valRect.height - tz.y)/2);
             
-             dc.SetTextForeground(*wxBLACK); 
-            dc.DrawText(clippedName, primaryRect.GetX() + 5, primaryRect.GetY());
+            // Small triangle
+            wxPoint tri[] = {
+                 wxPoint(valRect.GetRight() - 5, valRect.GetBottom() - 5),
+                 wxPoint(valRect.GetRight() - 2, valRect.GetBottom() - 5),
+                 wxPoint(valRect.GetRight() - 3, valRect.GetBottom() - 3)
+            };
+            dc.SetBrush(*wxBLACK_BRUSH);
+            dc.DrawPolygon(3, tri);
         }
         
         y += currentHeight;
@@ -410,6 +493,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                     {
                         track.isExpanded = !track.isExpanded;
                         Refresh();
+                        if (timelineView) timelineView->UpdateVirtualSize();
                         GetParent()->Refresh(); 
                         handled = true;
                         return;
@@ -419,29 +503,28 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                 // 2. Buttons (Mute/Solo) - Only for Parents
                 if (indent == 0)
                 {
-                    int btnWidth = 40;
-                    int btnHeight = (indent == 0) ? 18 : 14;
-                    int btnY = (indent == 0) ? 25 : 20;
+                    // New Layout: 
+                    // Mute: x=5, y=localY 25, w30 h20
+                    // Solo: x=5, y=localY 50, w30 h20
                     
-                    wxRect muteRect(5, btnY, btnWidth, btnHeight);
-                    wxRect soloRect(5 + btnWidth + 5, btnY, btnWidth, btnHeight);
+                    wxRect muteRect(5, 25, 30, 20); // Local Y relative to track start
+                    wxRect soloRect(5, 50, 30, 20);
                     
-                    if (localY >= btnY && localY <= btnY + btnHeight)
+                    if (clickX >= muteRect.x && clickX <= muteRect.GetRight() &&
+                        localY >= muteRect.y && localY <= muteRect.GetBottom())
                     {
-                         if (clickX >= muteRect.GetX() && clickX <= muteRect.GetRight())
-                         {
-                             track.mute = !track.mute;
-                             Refresh(); 
-                             handled = true;
-                             return;
-                         }
-                         if (clickX >= soloRect.GetX() && clickX <= soloRect.GetRight())
-                         {
-                             track.solo = !track.solo;
-                             Refresh();
-                             handled = true;
-                             return;
-                         }
+                         track.mute = !track.mute;
+                         Refresh();
+                         handled = true;
+                         return;
+                    }
+                    if (clickX >= soloRect.x && clickX <= soloRect.GetRight() &&
+                        localY >= soloRect.y && localY <= soloRect.GetBottom())
+                    {
+                         track.solo = !track.solo;
+                         Refresh();
+                         handled = true;
+                         return;
                     }
                 }
                 
@@ -449,12 +532,14 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                 if (indent > 0)
                 {
                     int btnY = 20;
-                    int sliderX = 100;
-                    int sliderW = 100;
+                    // Dynamic layout matching OnPaint
+                    int sliderW = (int)(width * 0.75);
+                    int sliderX = (width - sliderW) / 2;
                     int sliderH = 14;
                     
-                    if (localY >= btnY && localY <= btnY + sliderH &&
-                        clickX >= sliderX && clickX <= sliderX + sliderW + 30)
+                    // Allow slightly wider hit area for ease of use
+                    if (localY >= btnY - 5 && localY <= btnY + sliderH + 5 &&
+                        clickX >= sliderX - 10 && clickX <= sliderX + sliderW + 10)
                     {
                         isDraggingSlider = true;
                         sliderTrack = &track;
@@ -463,6 +548,9 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                          if (val < 0) val = 0;
                          if (val > 1) val = 1;
                          sliderTrack->gain = val;
+                         
+                         // Update Name logic from before...
+                         
                          Refresh();
                          handled = true;
                          return;
@@ -472,19 +560,39 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                 // 4. Primary Selector (Parent only)
                 if (indent == 0 && !track.children.empty())
                 {
-                    int btnY = 25;
-                    int btnHeight = 18;
-                    int primaryX = 100; 
-                    wxRect primaryRect(primaryX, btnY, 120, btnHeight);
+                    // Recalculate layout
+                    int pH = 20; 
+                    int pW = 20;
+                    int valW = 50;
+                    int rightMargin = 10;
                     
-                    if (clickX >= primaryRect.GetX() && clickX <= primaryRect.GetRight() &&
-                        localY >= btnY && localY <= btnY + btnHeight)
+                    int valX = width - rightMargin - valW;
+                    // int pX = valX - 2 - pW; // Not clickable
+                    int btnY = 25;
+                    
+                    if (clickX >= valX && clickX <= valX + valW &&
+                        localY >= btnY && localY <= btnY + pH)
                     {
-                        track.primaryChildIndex++;
-                        if (track.primaryChildIndex >= (int)track.children.size())
-                            track.primaryChildIndex = 0;
-                        Refresh();
-                        GetParent()->Refresh(); 
+                        // Show Menu
+                        wxMenu menu;
+                        for (int i=0; i<(int)track.children.size(); ++i) {
+                            // Name now updates with volume, so just use name.
+                            // If name doesn't have volume, we could append, but user request implies name always has it.
+                            // To be safe, we rely on the name being correct.
+                            wxString lbl = track.children[i].name;
+                            // Use AppendRadioItem so checking works correctly!
+                            menu.AppendRadioItem(10000 + i, lbl);
+                            if (i == track.primaryChildIndex) menu.Check(10000 + i, true);
+                        }
+                        
+                        int selectedId = GetPopupMenuSelectionFromUser(menu);
+                        if (selectedId >= 10000)
+                        {
+                            track.primaryChildIndex = selectedId - 10000;
+                            Refresh();
+                            if (GetParent()) GetParent()->Refresh();
+                        }
+                        
                         handled = true;
                         return;
                     }
@@ -598,6 +706,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                      }
                      
                      Refresh();
+                     if (timelineView) timelineView->UpdateVirtualSize();
                      GetParent()->Refresh(); // Refresh Timeline
                  }
              }
@@ -610,14 +719,49 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
         {
             // Handle Slider Drag - convert mouse to logical coords
             int clickX = evt.GetX();
-            int sliderX = 100;
-            int sliderW = 100;
+            int width = GetClientSize().GetWidth();
+            
+            // Re-calculate slider dimensions based on sliderTrack, but...
+            // dragging logic doesn't know 'indent'.
+            // However, we can approximate or find indent. 
+            // OR: we can ignore indent precision if it's small shift, 
+            // but for correct 0-100%, we need sliderX.
+            // sliderX = indent * 10 + 25. 
+            // We need to find the track to know indent.
+            
+            // Let's iterate to find indent.
+            int indent = 1; // Default assumption for child?
+             std::function<void(Track&, int)> findIndent = [&](Track& t, int d) {
+                 if (&t == sliderTrack) { indent = d; return; }
+                 for(auto& c : t.children) findIndent(c, d+1);
+             };
+             for(auto& t : project->tracks) findIndent(t, 0);
+
+            int sliderW = (int)(width * 0.75);
+            int sliderX = (width - sliderW) / 2;
 
             double val = (double)(clickX - sliderX) / sliderW;
             if (val < 0) val = 0;
             if (val > 1) val = 1;
             
             sliderTrack->gain = val;
+            
+            // Update Name with new Volume
+            std::string& name = sliderTrack->name;
+            size_t parenPos = name.rfind("(");
+            std::string newVol = wxString::Format("(%d%%)", (int)(val * 100)).ToStdString();
+            
+            if (parenPos != std::string::npos) {
+                // Check if it looks like a volume tag
+                if (name.find("%", parenPos) != std::string::npos) {
+                     name = name.substr(0, parenPos) + newVol;
+                } else {
+                     name += " " + newVol;
+                }
+            } else {
+                name += " " + newVol;
+            }
+            
             Refresh();
         }
         else if (!isDraggingSlider && dragSourceTrack)
@@ -781,7 +925,10 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
              
              // Refresh Everything
              Refresh();
-             if (timelineView) timelineView->Refresh();
+             if (timelineView) {
+                 timelineView->Refresh();
+                 timelineView->UpdateVirtualSize();
+             }
         }
         
         isDraggingSlider = false;
@@ -791,4 +938,10 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
         SetCursor(wxCursor(wxCURSOR_ARROW));
         Refresh();
     }
+}
+
+void TrackList::OnSize(wxSizeEvent& evt)
+{
+    Refresh();
+    evt.Skip();
 }
