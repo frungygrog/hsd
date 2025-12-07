@@ -57,6 +57,9 @@ MainFrame::MainFrame()
     // Right: TimelineView
     timelineView = new TimelineView(splitter);
     
+    // Connect TrackList to TimelineView for reordering updates
+    trackList->SetTimelineView(timelineView);
+    
     // Transport Panel (Top)
     transportPanel = new TransportPanel(this, &audioEngine, timelineView);
     mainSizer->Add(transportPanel, 0, wxEXPAND | wxALL, 5);

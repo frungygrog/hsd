@@ -1,7 +1,13 @@
 #include "TrackList.h"
 #include "../model/Project.h"
 #include "AddTrackDialog.h"
+// Include TimelineView header for full definition
+#include "TimelineView.h" 
 #include <wx/dcbuffer.h>
+#include <wx/graphics.h>
+#include <cmath>
+#include <algorithm>
+#include <functional>
 
 wxBEGIN_EVENT_TABLE(TrackList, wxPanel)
     EVT_PAINT(TrackList::OnPaint)
@@ -131,6 +137,18 @@ void TrackList::OnPaint(wxPaintEvent& evt)
         dc.SetPen(wxPen(borderCol));
         dc.SetBrush(wxBrush(panelCol));
         dc.DrawRectangle(trackRect);
+        
+        // Highlight Source Track if Dragging
+        if (isDraggingTrack && &track == dragSourceTrack)
+        {
+            std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::CreateFromUnknownDC(dc));
+            if (gc)
+            {
+                gc->SetBrush(wxBrush(wxColour(0, 120, 255, 80))); // Low opacity blue
+                gc->SetPen(*wxTRANSPARENT_PEN);
+                gc->DrawRectangle(trackRect.x, trackRect.y, trackRect.width, trackRect.height);
+            }
+        }
         
         // Title Rect
         int titleH = (indent == 0) ? 20 : 15;
@@ -277,6 +295,83 @@ void TrackList::OnPaint(wxPaintEvent& evt)
     wxSize txtSize = dc.GetTextExtent(label);
     dc.DrawText(label, addBtnRect.GetX() + (addBtnRect.GetWidth() - txtSize.GetWidth())/2, 
                        addBtnRect.GetY() + (addBtnRect.GetHeight() - txtSize.GetHeight())/2);
+                       
+    // Draw Drag Insertion Line
+    if (isDraggingTrack && currentDropTarget.isValid)
+    {
+        int targetY = headerHeight;
+        bool found = false;
+        
+        std::function<void(Track&)> findY = [&](Track& t) {
+            if (found) return;
+            
+            // Check if this is the target parent's first child location
+            if (currentDropTarget.parent == &t && currentDropTarget.index == 0) {
+                 targetY += 80; // After parent header
+                 found = true;
+                 return;
+            }
+            
+            // Check if we are inserting before 't'
+            // To do this strictly, we need to match pointer or indices.
+            // Simplified: we rely on iteration order matches.
+        };
+        
+        // Retraverse to find screen Y of the target index
+        int curY = headerHeight;
+        // Logic: Iterate linear visible tracks. 
+        // If DropTarget is (Parent=nullptr, Index=N), we want the Nth parent top Y.
+        // If DropTarget is (Parent=P, Index=N), we want the Nth child of P Y.
+        
+        if (currentDropTarget.parent == nullptr)
+        {
+             // Root level
+             int pIdx = 0;
+             for (auto& t : project->tracks) {
+                 if (pIdx == currentDropTarget.index) {
+                     targetY = curY;
+                     break;
+                 }
+                 int h = (t.name.find("%)") != std::string::npos) ? 40 : 80;
+                 curY += h;
+                 if (t.isExpanded) {
+                     for (auto& c : t.children) curY += 40; // Children are 40
+                 }
+                 pIdx++;
+             }
+             if (pIdx == currentDropTarget.index) targetY = curY; // End of list
+        }
+        else
+        {
+             // Child level
+             for (auto& t : project->tracks) {
+                 int h = (t.name.find("%)") != std::string::npos) ? 40 : 80;
+                 if (&t == currentDropTarget.parent)
+                 {
+                     curY += h; // Skip parent itself
+                     int cIdx = 0;
+                     for (auto& c : t.children) {
+                         if (cIdx == currentDropTarget.index) {
+                             targetY = curY;
+                             goto found_y;
+                         }
+                         curY += 40;
+                         cIdx++;
+                     }
+                     if (cIdx == currentDropTarget.index) targetY = curY; // End of child list
+                     goto found_y;
+                 }
+                 curY += h;
+                 if (t.isExpanded) {
+                     for (auto& c : t.children) curY += 40;
+                 }
+             }
+        }
+        
+        found_y:
+        dc.SetPen(wxPen(wxColour(0, 255, 255), 2));
+        dc.DrawLine(0, targetY, width, targetY);
+    }
 }
 
 void TrackList::OnMouseEvents(wxMouseEvent& evt)
@@ -413,6 +508,38 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
             hitTest(t, 0);
             if (handled) break;
         }
+        
+        if (!handled)
+        {
+            // Possibly Start Drag Candidate if clicked on a track body
+            // Identify track under mouse
+             std::function<Track*(Track&, int, int&)> findTrack = [&](Track& tr, int indent, int& curY) -> Track* {
+                 int h = (indent==0 ? 80 : 40);
+                 if (clickY >= curY && clickY < curY + h) return &tr;
+                 curY += h;
+                 if (tr.isExpanded) {
+                     for (auto& c : tr.children) {
+                         Track* res = findTrack(c, indent+1, curY);
+                         if (res) return res;
+                     }
+                 }
+                 return nullptr;
+             };
+             
+             int trackScanY = 130;
+             Track* hit = nullptr;
+             for (auto& t : project->tracks) {
+                 hit = findTrack(t, 0, trackScanY);
+                 if (hit) break;
+             }
+             
+             if (hit)
+             {
+                 dragSourceTrack = hit;
+                 dragSourceY = clickY; 
+                 // Don't set isDraggingTrack yet, wait for threshold
+             }
+        }
             
         // Check "Add Track" Button
         if (!handled)
@@ -477,25 +604,191 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
         }
         }
     }
-    else if (evt.Dragging() && isDraggingSlider && sliderTrack)
+    else if (evt.Dragging())
     {
-        // Handle Slider Drag - convert mouse to logical coords
-        int clickX = evt.GetX();
+        if (isDraggingSlider && sliderTrack)
+        {
+            // Handle Slider Drag - convert mouse to logical coords
+            int clickX = evt.GetX();
+            int sliderX = 100;
+            int sliderW = 100;
 
-        // Same logic: sliderX=100, sliderW=100
-        int sliderX = 100;
-        int sliderW = 100;
-
-        double val = (double)(clickX - sliderX) / sliderW;
-        if (val < 0) val = 0;
-        if (val > 1) val = 1;
-        
-        sliderTrack->gain = val;
-        Refresh();
+            double val = (double)(clickX - sliderX) / sliderW;
+            if (val < 0) val = 0;
+            if (val > 1) val = 1;
+            
+            sliderTrack->gain = val;
+            Refresh();
+        }
+        else if (!isDraggingSlider && dragSourceTrack)
+        {
+            // Track Drag Logic
+            int y = evt.GetY() + scrollOffsetY;
+            if (!isDraggingTrack)
+            {
+                if (std::abs(y - dragSourceY) > 5)
+                {
+                    isDraggingTrack = true;
+                    SetCursor(wxCursor(wxCURSOR_HAND));
+                }
+            }
+            
+            if (isDraggingTrack)
+            {
+                dragCurrentY = y;
+                
+                // Determine Drop Target
+                int curY = 130; 
+                bool isSourceChild = (!dragSourceTrack->children.empty() == false && dragSourceTrack->name.find("%)") != std::string::npos); // Heuristic or check project
+                // Better check: is it in a children vector?
+                // Logic: Find source in structure
+                
+                Track* sourceParent = nullptr;
+                for (auto& p : project->tracks) {
+                    for (auto& c : p.children) {
+                        if (&c == dragSourceTrack) { sourceParent = &p; break; }
+                    }
+                    if (sourceParent) break;
+                }
+                
+                // Reset valid
+                currentDropTarget.isValid = false;
+                
+                // Hit test for Y
+                // We iterate to find where 'y' falls in the list
+                
+                if (sourceParent)
+                {
+                     // Dragging a Child
+                     // Can only drop within sourceParent's children
+                     currentDropTarget.parent = sourceParent;
+                     
+                     // Find Y range of parent's children
+                     // Find parent Y
+                     int pY = 130;
+                     for (auto& t : project->tracks) {
+                         if (&t == sourceParent) break;
+                         pY += (t.name.find("%)") != std::string::npos ? 40 : 80); // Should be 80 for parent
+                         if (t.isExpanded) pY += t.children.size() * 40;
+                     }
+                     
+                     // Start checking child slots
+                     int childStartY = pY + 80;
+                     int cIdx = 0;
+                     int bestIdx = -1;
+                     
+                     // If we are above the children, insert at 0
+                     if (dragCurrentY < childStartY) bestIdx = 0;
+                     else
+                     {
+                         for (size_t i=0; i < sourceParent->children.size(); ++i)
+                         {
+                             int midY = childStartY + 40/2;
+                             if (dragCurrentY < midY) { bestIdx = i; break; }
+                             childStartY += 40;
+                         }
+                         if (bestIdx == -1) bestIdx = sourceParent->children.size();
+                     }
+                     
+                     currentDropTarget.index = bestIdx;
+                     currentDropTarget.isValid = true;
+                }
+                else
+                {
+                    // Dragging a Parent
+                    currentDropTarget.parent = nullptr;
+                    int pIdx = 0;
+                    int bestIdx = -1;
+                    int pY = 130;
+                    
+                    for (auto& t : project->tracks)
+                    {
+                        // Calculate total height of this block
+                        int h = 80;
+                        if (t.isExpanded) h += t.children.size() * 40;
+                        
+                        // Check if y is in upper half of this block? No, simpler: Insert *before* block if Y < center?
+                        // Actually easier to just check discrete boundaries.
+                        // Let's assume insertion point is between blocks.
+                        // If y < pY + h/2, insert before t.
+                        if (dragCurrentY < pY + h/2) { bestIdx = pIdx; break; }
+                        
+                        pY += h;
+                        pIdx++;
+                    }
+                    if (bestIdx == -1) bestIdx = project->tracks.size();
+                    
+                    currentDropTarget.index = bestIdx;
+                    currentDropTarget.isValid = true;
+                }
+                
+                Refresh();
+            }
+        }
     }
     else if (evt.LeftUp())
     {
+        if (isDraggingTrack && currentDropTarget.isValid && dragSourceTrack)
+        {
+             // Execute Move
+             if (currentDropTarget.parent) // Moving Child
+             {
+                 auto& kids = currentDropTarget.parent->children;
+                 // Find source index
+                 int srcIdx = -1;
+                 for(int i=0; i<(int)kids.size(); ++i) if (&kids[i] == dragSourceTrack) { srcIdx=i; break; }
+                 
+                 if (srcIdx != -1)
+                 {
+                     int destIdx = currentDropTarget.index;
+                     
+                     // Adjust for shift if moving downwards
+                     if (srcIdx < destIdx) destIdx--;
+                     
+                     if (srcIdx != destIdx && destIdx >= 0 && destIdx <= (int)kids.size()-1)
+                     {
+                         Track temp = std::move(kids[srcIdx]);
+                         kids.erase(kids.begin() + srcIdx);
+                         kids.insert(kids.begin() + destIdx, std::move(temp));
+                         
+                         // Rule: If moved to top (index 0), reset primaryChildIndex ?
+                         if (destIdx == 0) currentDropTarget.parent->primaryChildIndex = 0;
+                         // Else if we moved old primary away? Logic is complex based on user req.
+                         // User: "Move to top -> New Primary".
+                         // So if destIdx == 0, we effectively want that track to be primary.
+                     }
+                 }
+             }
+             else // Moving Parent
+             {
+                 auto& tracks = project->tracks;
+                 int srcIdx = -1;
+                 for(int i=0; i<(int)tracks.size(); ++i) if (&tracks[i] == dragSourceTrack) { srcIdx=i; break; }
+                 
+                 if (srcIdx != -1)
+                 {
+                     int destIdx = currentDropTarget.index;
+                     if (srcIdx < destIdx) destIdx--;
+                     
+                     if (srcIdx != destIdx && destIdx >= 0 && destIdx <= (int)tracks.size()-1)
+                     {
+                         Track temp = std::move(tracks[srcIdx]);
+                         tracks.erase(tracks.begin() + srcIdx);
+                         tracks.insert(tracks.begin() + destIdx, std::move(temp));
+                     }
+                 }
+             }
+             
+             // Refresh Everything
+             Refresh();
+             if (timelineView) timelineView->Refresh();
+        }
+        
         isDraggingSlider = false;
         sliderTrack = nullptr;
+        isDraggingTrack = false;
+        dragSourceTrack = nullptr;
+        SetCursor(wxCursor(wxCURSOR_ARROW));
+        Refresh();
     }
 }

@@ -2,37 +2,47 @@
 #include <wx/wx.h>
 #include "../model/Track.h"
 
+// Forward declarations
 struct Project;
+class TimelineView;
 
-// TrackList is a simple wxPanel that mirrors TimelineView's vertical scroll position.
-// This ensures perfect sync since there's only one source of truth for scroll state.
 class TrackList : public wxPanel
 {
 public:
     TrackList(wxWindow* parent);
     
     void SetProject(Project* p);
-    void SetVerticalScrollOffset(int y); // Set from TimelineView's scroll position
+    void SetVerticalScrollOffset(int y);
+    void SetTimelineView(TimelineView* view) { timelineView = view; }
     
-    // Helpers
+    int GetTotalContentHeight() const;
     std::vector<Track*> GetVisibleTracks();
-    
-    int GetHeaderHeight() const { return 130; } // Ruler + Master
-    int GetTotalContentHeight() const; // Calculate total height for TimelineView's virtual size
-    
-    // Interaction
-    bool isDraggingSlider = false;
-    Track* sliderTrack = nullptr;
-
-private:
-    Project* project = nullptr;
-    int scrollOffsetY = 0; // Vertical scroll offset from TimelineView
-    int trackHeight = 100;
-    
     int GetTrackHeight(const Track& track);
     
+private:
     void OnPaint(wxPaintEvent& evt);
     void OnMouseEvents(wxMouseEvent& evt);
+    
+    Project* project = nullptr;
+    TimelineView* timelineView = nullptr;
+    int scrollOffsetY = 0;
+    
+    // Slider Dragging
+    bool isDraggingSlider = false;
+    Track* sliderTrack = nullptr;
+    
+    // Track Reordering
+    bool isDraggingTrack = false;
+    Track* dragSourceTrack = nullptr;
+    int dragSourceY = 0; 
+    int dragCurrentY = 0; 
+    
+    struct DropTarget {
+        Track* parent = nullptr; // nullptr if root (parent list)
+        int index = -1; // Index in the vector (before which to insert)
+        bool isValid = false;
+    };
+    DropTarget currentDropTarget;
     
     wxDECLARE_EVENT_TABLE();
 };
