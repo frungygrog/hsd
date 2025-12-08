@@ -33,7 +33,8 @@ This document provides a comprehensive technical overview of the Hitsound DAW pr
   │ │ ├── TransportPanel.cpp # Playback & Zoom controls
   │ │ ├── AddTrackDialog.cpp/.h # Dialog for adding/editing standard tracks
   │ │ ├── AddGroupingDialog.cpp/.h # Dialog for adding/editing groupings
-  │ │ └── ProjectSetupDialog.cpp/.h # Project configuration dialog
+  │ │ ├── ProjectSetupDialog.cpp/.h # Project configuration dialog
+  │ │ └── PresetDialog.cpp/.h # Dialog for loading track presets
 
 
 ---
@@ -51,6 +52,7 @@ This document provides a comprehensive technical overview of the Hitsound DAW pr
         *   **Parent Track**: Represents a specific Sound (e.g., "Normal-HitNormal").
         *   **Child Track**: Represents a Volume Layer (e.g., "60%").
     *   **Event**: Stores `time` (seconds) and `volume` (0.0-1.0).
+    *   **ValidationState**: Tri-state enum (`Valid`, `Invalid`, `Warning`) for event validation feedback.
     *   **Sample Info**: `sampleSet` (Normal/Soft/Drum), `sampleType` (HitNormal/Whistle/Finish/Clap), `customFilename`.
 
 ### B. I/O & Parsing (`io/OsuParser.cpp`)
@@ -87,6 +89,11 @@ A custom `wxScrolledWindow` that performs high-performance 2D drawing.
     *   **Selection**: Supports Click, Ctrl+Click, and Marquee selection.
     *   **Drag & Drop**: Implements "Ghost" dragging visualization before committing changes via `UndoManager`.
     *   **Looping**: Dragging the ruler creates a loop region.
+*   **Validation Colors**:
+    *   **Valid**: Blue (normal), Yellow (selected)
+    *   **Invalid**: Red (normal), Orange (selected) - e.g., conflicting addition banks
+    *   **Warning**: Pink (normal), Light Pink (selected) - e.g., addition without hitnormal backing
+*   **Default Bank Selector**: Dropdown in TransportPanel (None/Normal/Soft/Drum). When set, placing an addition auto-places a matching hitnormal via `FindOrCreateHitnormalTrack()`.
 
 ### E. Track Management (`ui/TrackList.cpp`)
 The TrackList panel provides track organization and context menu operations.
@@ -98,6 +105,12 @@ The TrackList panel provides track organization and context menu operations.
     *   `AddTrackDialog`: Configure name, bank (Normal/Soft/Drum), type (HitNormal/Whistle/Clap/Finish), volume. Supports edit mode via `SetEditMode(true)` and `SetValues()`.
     *   `AddGroupingDialog`: Configure name, HitNormal bank, additions bank, addition types (Whistle/Finish/Clap checkboxes), volume. Supports edit mode similarly.
 *   **Track Deletion**: Parent deletion removes all children; child deletion only removes that child and adjusts `primaryChildIndex`.
+
+### F. Presets (`ui/PresetDialog.cpp`, `MainFrame::ApplyPreset`)
+Accessible via "Track" → "Load Preset..." menu. Presets add predefined track/grouping collections.
+*   **Generic Preset** (60% volume):
+    *   Tracks: Kick (n-hn), Hi-Hat (d-hn), Default (s-hn), Whistle (s-hw), Clap (s-hc), Crash (s-hf)
+    *   Grouping: Snare (s-hn + s-hc)
 ---
 
 ## 4. "Last Christmas" Data Analysis

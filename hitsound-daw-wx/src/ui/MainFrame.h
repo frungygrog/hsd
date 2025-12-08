@@ -29,7 +29,10 @@ public:
         
         // Transport
         ID_PLAY_STOP = 10200,
-        ID_REWIND
+        ID_REWIND,
+        
+        // Track
+        ID_LOAD_PRESET = 10300
     };
     
 private:
@@ -40,6 +43,8 @@ private:
     void OnOpenFolder(wxCommandEvent& evt);
     void OnScrollTimeline(wxScrollWinEvent& evt);
     void OnTimer(wxTimerEvent& evt);
+    void OnLoadPreset(wxCommandEvent& evt);
+    void ApplyPreset(const std::string& presetName);
 
     // UI Elements
     wxSplitterWindow* splitter;

@@ -47,6 +47,8 @@ add_executable(hitsound-daw-wx
     src/ui/AddGroupingDialog.h
     src/ui/ProjectSetupDialog.cpp
     src/ui/ProjectSetupDialog.h
+    src/ui/PresetDialog.cpp
+    src/ui/PresetDialog.h
     src/audio/AudioEngine.cpp
     src/audio/AudioEngine.h
     src/audio/EventPlaybackSource.cpp

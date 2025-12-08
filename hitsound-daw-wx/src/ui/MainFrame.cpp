@@ -1,5 +1,6 @@
 #include "MainFrame.h"
 #include "../model/ProjectValidator.h"
+#include "PresetDialog.h"
 #include <juce_audio_devices/juce_audio_devices.h>
 #include "ProjectSetupDialog.h"
 #include "../io/OsuParser.h"
@@ -156,6 +157,11 @@ void MainFrame::BuildMenu()
     transportMenu->Append(ID_REWIND, "Rewind to Start\tHome");
     menuBar->Append(transportMenu, "&Transport");
     
+    // Track
+    wxMenu* trackMenu = new wxMenu;
+    trackMenu->Append(ID_LOAD_PRESET, "Load &Preset...", "Load a track preset");
+    menuBar->Append(trackMenu, "Trac&k");
+    
     SetMenuBar(menuBar);
     
     // Bind Events
@@ -169,6 +175,8 @@ void MainFrame::BuildMenu()
     
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->TogglePlayback(); }, ID_PLAY_STOP);
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->Stop(); }, ID_REWIND); // Reusing Stop logic which rewinds
+    
+    Bind(wxEVT_MENU, &MainFrame::OnLoadPreset, this, ID_LOAD_PRESET);
 }
 
 void MainFrame::OnOpen(wxCommandEvent& evt)
@@ -340,5 +348,88 @@ void MainFrame::OnTimer(wxTimerEvent& evt)
         double pos = audioEngine.GetPosition();
         transportPanel->UpdateTime(pos);
         timelineView->SetPlayheadPosition(pos);
+    }
+}
+
+void MainFrame::OnLoadPreset(wxCommandEvent& evt)
+{
+    PresetDialog dlg(this);
+    if (dlg.ShowModal() == wxID_OK)
+    {
+        auto result = dlg.GetResult();
+        if (result.confirmed)
+        {
+            ApplyPreset(result.presetName.ToStdString());
+        }
+    }
+}
+
+void MainFrame::ApplyPreset(const std::string& presetName)
+{
+    if (presetName == "Generic")
+    {
+        // Helper to create a standard track with parent + child at 60% volume
+        auto createTrack = [](const std::string& name, SampleSet bank, SampleType type) -> Track {
+            Track parent;
+            parent.name = name;
+            parent.sampleSet = bank;
+            parent.sampleType = type;
+            parent.gain = 1.0;
+            parent.isExpanded = true;
+            parent.primaryChildIndex = 0;
+            
+            // Get lowercase bank/type names for child
+            std::string sStr = (bank == SampleSet::Normal) ? "normal" : (bank == SampleSet::Soft ? "soft" : "drum");
+            std::string tStr;
+            switch (type) {
+                case SampleType::HitNormal: tStr = "hitnormal"; break;
+                case SampleType::HitWhistle: tStr = "hitwhistle"; break;
+                case SampleType::HitFinish: tStr = "hitfinish"; break;
+                case SampleType::HitClap: tStr = "hitclap"; break;
+                default: tStr = "hitnormal"; break;
+            }
+            
+            Track child;
+            child.name = sStr + "-" + tStr + " (60%)";
+            child.sampleSet = bank;
+            child.sampleType = type;
+            child.gain = 0.6;
+            
+            parent.children.push_back(child);
+            return parent;
+        };
+        
+        // Create tracks
+        project.tracks.push_back(createTrack("Kick", SampleSet::Normal, SampleType::HitNormal));
+        project.tracks.push_back(createTrack("Hi-Hat", SampleSet::Drum, SampleType::HitNormal));
+        project.tracks.push_back(createTrack("Default", SampleSet::Soft, SampleType::HitNormal));
+        project.tracks.push_back(createTrack("Whistle", SampleSet::Soft, SampleType::HitWhistle));
+        project.tracks.push_back(createTrack("Clap", SampleSet::Soft, SampleType::HitClap));
+        project.tracks.push_back(createTrack("Crash", SampleSet::Soft, SampleType::HitFinish));
+        
+        // Create Snare grouping (soft-hitnormal + soft-hitclap)
+        Track snare;
+        snare.name = "Snare";
+        snare.isGrouping = true;
+        snare.isExpanded = true;
+        snare.primaryChildIndex = 0;
+        snare.gain = 1.0;
+        
+        // Child with layers
+        Track snareChild;
+        snareChild.name = "Snare (60%)";
+        snareChild.gain = 0.6;
+        snareChild.layers.push_back({SampleSet::Soft, SampleType::HitNormal});
+        snareChild.layers.push_back({SampleSet::Soft, SampleType::HitClap});
+        
+        snare.children.push_back(snareChild);
+        project.tracks.push_back(snare);
+        
+        // Refresh UI
+        trackList->SetProject(&project);
+        timelineView->SetProject(&project);
+        timelineView->UpdateVirtualSize();
+        
+        wxMessageBox("Generic preset loaded successfully!\n\n6 Tracks + 1 Grouping added.", "Preset Loaded", wxICON_INFORMATION);
     }
 }
