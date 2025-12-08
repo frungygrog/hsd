@@ -45,5 +45,8 @@ private:
     };
     DropTarget currentDropTarget;
     
+    wxBitmap trackIcon;
+    wxBitmap groupingIcon;
+    
     wxDECLARE_EVENT_TABLE();
 };

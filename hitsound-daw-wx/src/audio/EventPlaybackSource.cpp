@@ -46,50 +46,71 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
             return;
 
         // Process events
-        for (const auto& event : track.events)
+        if (!track.isGrouping)
         {
-            auto eventStartSample = (int64_t) (event.time * currentSampleRate); // Note: event.time is Seconds in our model? Or ms? 
-            // In original it was timeMs. In new Track.h it is double time (seconds).
-            // Let's assume seconds.
-            
-            // Trigger if start is within this block
-            if (eventStartSample >= currentSample && eventStartSample < endSample)
+            // Standard behavior: Play track's own assigned sample
+            for (const auto& event : track.events)
             {
-                // We need to map Track info to SampleRef
-                // Track has sampleSet and sampleType
-                SampleRef ref;
-                ref.set = track.sampleSet;
-                ref.type = track.sampleType;
+                auto eventStartSample = (int64_t) (event.time * currentSampleRate); 
                 
-                auto* reader = sampleRegistry.getReader (ref);
-                if (reader != nullptr)
+                if (eventStartSample >= currentSample && eventStartSample < endSample)
                 {
-                    int startOffset = (int) (eventStartSample - currentSample);
-                    activeVoices.emplace_back (Voice { reader, 0, (double)reader->sampleRate / currentSampleRate, (float)(track.gain * event.volume), startOffset });
+                    SampleRef ref;
+                    ref.set = track.sampleSet;
+                    ref.type = track.sampleType;
                     
-                    static bool hasDebugged = false;
-                    if (!hasDebugged)
+                    auto* reader = sampleRegistry.getReader (ref);
+                    if (reader != nullptr)
                     {
-                         hasDebugged = true;
-                         // Using MessageBox in audio thread is bad practice but acceptable for this specific debug step
-                         // checking on main thread would be better but this is quick verification
-                         // juce::MessageManager::callAsync([](){ wxMessageBox("Audio Triggered!", "Debug", wxOK); });
-                         // We can't easily call wxMessageBox from audio thread safely/synchronously? 
-                         // It might freeze audio thread.
-                         // Let's use Logger or just trust if it freezes it worked.
-                         // Or assume user will see it.
-                         // Actually, calling UI from audio thread is dangerous.
-                         // Let's NOT.
+                        int startOffset = (int) (eventStartSample - currentSample);
+                        activeVoices.emplace_back (Voice { reader, 0, (double)reader->sampleRate / currentSampleRate, (float)(track.gain * event.volume), startOffset });
                     }
                 }
-                else
+            }
+        }
+        else
+        {
+            // Grouping behavior: Parent events trigger ALL children
+            for (const auto& event : track.events)
+            {
+                auto eventStartSample = (int64_t) (event.time * currentSampleRate); 
+                
+                if (eventStartSample >= currentSample && eventStartSample < endSample)
                 {
-                     static bool hasDebuggedMissing = false;
-                     if (!hasDebuggedMissing)
-                     {
-                         hasDebuggedMissing = true;
-                         // juce::MessageManager::callAsync([](){ wxMessageBox("Missing Sample Reader", "Debug", wxOK); });
-                     }
+                    // Trigger every child
+                    for (const auto& child : track.children)
+                    {
+                        if (child.mute) continue; 
+                        
+                        // Helper to play a specific sample ref
+                        auto playSample = [&](SampleSet bank, SampleType type) {
+                            SampleRef ref;
+                            ref.set = bank;
+                            ref.type = type;
+                            
+                            auto* reader = sampleRegistry.getReader (ref);
+                            if (reader != nullptr)
+                            {
+                                int startOffset = (int) (eventStartSample - currentSample);
+                                float combinedGain = (float)(track.gain * child.gain * event.volume);
+                                activeVoices.emplace_back (Voice { reader, 0, (double)reader->sampleRate / currentSampleRate, combinedGain, startOffset });
+                            }
+                        };
+
+                        if (child.layers.empty())
+                        {
+                            // Fallback to single sample definition
+                            playSample(child.sampleSet, child.sampleType);
+                        }
+                        else
+                        {
+                            // Play all layers
+                            for (const auto& layer : child.layers)
+                            {
+                                playSample(layer.bank, layer.type);
+                            }
+                        }
+                    }
                 }
             }
         }

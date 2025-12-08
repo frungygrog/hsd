@@ -1,6 +1,7 @@
 #include "TrackList.h"
 #include "../model/Project.h"
 #include "AddTrackDialog.h"
+#include "AddGroupingDialog.h"
 // Include TimelineView header for full definition
 #include "TimelineView.h" 
 #include <wx/dcbuffer.h>
@@ -8,6 +9,8 @@
 #include <cmath>
 #include <algorithm>
 #include <functional>
+#include <wx/bmpbndl.h>
+#include <wx/filename.h>
 
 wxBEGIN_EVENT_TABLE(TrackList, wxPanel)
     EVT_PAINT(TrackList::OnPaint)
@@ -15,11 +18,42 @@ wxBEGIN_EVENT_TABLE(TrackList, wxPanel)
     EVT_MOUSE_EVENTS(TrackList::OnMouseEvents)
 wxEND_EVENT_TABLE()
 
+#include <wx/file.h>
+
+// Helper to load and recolor SVGs robustly (borrowed from TransportPanel logic)
+static wxBitmap LoadIconHelper(const wxString& name, const wxColor& color)
+{
+    wxString path = "Resources/icon/" + name;
+    if (!wxFileExists(path)) {
+            if (wxFileExists("../Resources/icon/" + name)) path = "../Resources/icon/" + name;
+            else if (wxFileExists("../../Resources/icon/" + name)) path = "../../Resources/icon/" + name;
+    }
+    
+    if (!wxFileExists(path)) return wxBitmap();
+
+    wxFile file(path);
+    wxString svgContent;
+    if (file.IsOpened()) file.ReadAll(&svgContent);
+    
+    wxString hex = color.GetAsString(wxC2S_HTML_SYNTAX);
+    svgContent.Replace("#000000", hex);
+    svgContent.Replace("black", hex);
+    
+    wxBitmapBundle bundle = wxBitmapBundle::FromSVG(svgContent.ToStdString().c_str(), wxSize(16, 16));
+    if (bundle.IsOk()) return bundle.GetBitmap(wxSize(16, 16));
+    return wxBitmap();
+}
+
 TrackList::TrackList(wxWindow* parent)
     : wxPanel(parent)
 {
     SetBackgroundStyle(wxBG_STYLE_PAINT);
     SetBackgroundColour(wxColour(40, 40, 40));
+    
+    // Load Icons
+    wxColour iconColor(200, 200, 200);
+    trackIcon = LoadIconHelper("track.svg", iconColor);
+    groupingIcon = LoadIconHelper("grouping.svg", iconColor);
 }
 
 void TrackList::SetProject(Project* p)
@@ -49,7 +83,7 @@ int TrackList::GetTotalContentHeight() const
     
     for (const auto& t : project->tracks) calcHeight(t);
     
-    return height + 400; // Plus Add Track button space
+    return height; // Removed +400 for button space
 }
 
 std::vector<Track*> TrackList::GetVisibleTracks()
@@ -108,11 +142,41 @@ void TrackList::OnPaint(wxPaintEvent& evt)
     int masterTrackHeight = 100;
     int headerHeight = rulerHeight + masterTrackHeight;
     
-    // Draw Ruler (Blank for now in TrackList)
+    // Draw Ruler (Blank for now in TrackList -> Now holds buttons)
     wxRect rulerRect(0, y, width, rulerHeight);
     dc.SetBrush(wxBrush(wxColour(50, 50, 50)));
     dc.SetPen(*wxTRANSPARENT_PEN);
     dc.DrawRectangle(rulerRect);
+    
+    // Draw "Add Track" and "Add Grouping" Buttons in Ruler Area
+    // Layout: [Icon] Add Track  [Icon] Add Grouping
+    // Font size small?
+    
+    wxFont btnFont = dc.GetFont();
+    btnFont.SetPointSize(9);
+    btnFont.SetWeight(wxFONTWEIGHT_NORMAL);
+    dc.SetFont(btnFont);
+    dc.SetTextForeground(wxColour(200, 200, 200));
+    
+    int btnY = y + (rulerHeight - 16) / 2; // Center vertically (16px icon)
+    int curX = 10;
+    
+    // 1. Add Track
+    if (trackIcon.IsOk())
+    {
+        dc.DrawBitmap(trackIcon, curX, btnY, true);
+        curX += 20; // Icon width + spacing
+    }
+    dc.DrawText("Add Track", curX, btnY);
+    curX += dc.GetTextExtent("Add Track").GetWidth() + 15; // Spacing
+    
+    // 2. Add Grouping
+    if (groupingIcon.IsOk())
+    {
+        dc.DrawBitmap(groupingIcon, curX, btnY, true);
+        curX += 20;
+    }
+    dc.DrawText("Add Grouping", curX, btnY);
     
     // Master Track
     int masterY = y + rulerHeight;
@@ -361,23 +425,15 @@ void TrackList::OnPaint(wxPaintEvent& evt)
     for (auto& track : project->tracks)
         drawTrack(track, 0);
         
-    // Draw Add Track Button
-    int btnH = 30;
-    wxRect addBtnRect(10, y + 10, width - 20, btnH);
+
     
-    dc.SetBrush(wxBrush(wxColour(60, 60, 60)));
-    dc.SetPen(wxPen(wxColour(100, 100, 100)));
-    dc.DrawRoundedRectangle(addBtnRect, 4);
+
     
-    dc.SetTextForeground(*wxWHITE);
-    wxFont btnFont = dc.GetFont();
-    btnFont.SetWeight(wxFONTWEIGHT_BOLD);
-    dc.SetFont(btnFont);
+
     
-    wxString label = "+ Add Track";
-    wxSize txtSize = dc.GetTextExtent(label);
-    dc.DrawText(label, addBtnRect.GetX() + (addBtnRect.GetWidth() - txtSize.GetWidth())/2, 
-                       addBtnRect.GetY() + (addBtnRect.GetHeight() - txtSize.GetHeight())/2);
+
+
+
                        
     // Draw Drag Insertion Line
     if (isDraggingTrack && currentDropTarget.isValid)
@@ -475,6 +531,159 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
         int width = GetClientSize().GetWidth();
         
         bool handled = false;
+        
+        // Header Hit Testing (Ruler Area for Buttons)
+        if (clickY < headerHeight)
+        {
+             // Check if in Ruler part (0 to 30)
+             // Note: clickY includes scrollOffset, but header draws at 0 relative to scrolling usually? 
+             // Wait, in OnPaint: dc.SetDeviceOrigin(0, -scrollOffsetY);
+             // The header is drawn at y=0 (logical).
+             // So clickY (logical) is correct.
+             
+             // But wait, the header is drawn at `y` where `y` starts at 0.
+             // So yes, clickY < 30 is the ruler area.
+             
+             if (clickY < 30) // Ruler Height
+             {
+                 // Reconstruct layout logic to find hit
+                 // We need to match the layout in OnPaint. 
+                 // It's static, so we can approximate or duplicate logic.
+                 // This is a bit brittle but simplest for now without a UI framework within the canvas.
+                 
+                 int btnY = (30 - 16) / 2;
+                 int curX = 10;
+                 
+                 // Add Track
+                 // Icon (16) + Spacing (4) + Text
+                 wxClientDC dc(this);
+                 wxFont btnFont = dc.GetFont();
+                 btnFont.SetPointSize(9); 
+                 dc.SetFont(btnFont);
+                 
+                 int w1 = 20 + dc.GetTextExtent("Add Track").GetWidth();
+                 
+                 if (clickX >= curX && clickX <= curX + w1)
+                 {
+                     // Clicked Add Track!
+                     // Open Dialog
+                     AddTrackDialog dlg(this);
+                     if (dlg.ShowModal() == wxID_OK)
+                     {
+                         AddTrackResult res = dlg.GetResult();
+                         if (res.confirmed)
+                         {
+                             // Logic to add track
+                             std::string setStr = (res.bank==SampleSet::Normal)?"normal":(res.bank==SampleSet::Soft?"soft":"drum");
+                             std::string typeStr = (res.type==SampleType::HitNormal)?"hitnormal":(res.type==SampleType::HitWhistle?"hitwhistle":(res.type==SampleType::HitFinish?"hitfinish":"hitclap"));
+                             std::string parentName = setStr + "-" + typeStr;
+                             
+                             Track* parent = nullptr;
+                             for (auto& t : project->tracks) {
+                                 if (t.name == parentName) { parent = &t; break; }
+                             }
+                             
+                             if (!parent)
+                             {
+                                 Track newParent;
+                                 newParent.name = parentName;
+                                 newParent.sampleSet = res.bank;
+                                 newParent.sampleType = res.type;
+                                 newParent.isExpanded = true;
+                                 project->tracks.push_back(newParent);
+                                 parent = &project->tracks.back();
+                             }
+                             
+                             // Check child volume
+                             int vol = res.volume;
+                             std::string childName = parentName + " (" + std::to_string(vol) + "%)";
+                             
+                             bool childExists = false;
+                             for (auto& c : parent->children) {
+                                 if (c.name == childName) { childExists = true; break; }
+                             }
+                             
+                             if (!childExists)
+                             {
+                                 Track child;
+                                 child.name = childName;
+                                 child.sampleSet = res.bank;
+                                 child.sampleType = res.type;
+                                 child.gain = (float)vol / 100.0f;
+                                 parent->children.push_back(child);
+                             }
+                             
+                             Refresh();
+                             if (timelineView) timelineView->UpdateVirtualSize();
+                             GetParent()->Refresh(); // Refresh Timeline
+                         }
+                     }
+                     return; // Handled
+                 }
+                 
+                 curX += w1 + 15;
+                 
+                     // Add Grouping
+                 int w2 = 20 + dc.GetTextExtent("Add Grouping").GetWidth();
+                 if (clickX >= curX && clickX <= curX + w2)
+                 {
+                     // Clicked Add Grouping
+                     AddGroupingDialog dlg(this);
+                     if (dlg.ShowModal() == wxID_OK)
+                     {
+                         auto res = dlg.GetResult();
+                         if (res.confirmed)
+                         {
+                             // 1. Create Parent (Grouping)
+                             Track grouping;
+                             grouping.name = res.name.ToStdString();
+                             grouping.isGrouping = true;
+                             grouping.isExpanded = true;
+                             grouping.mute = false;
+                             grouping.solo = false;
+                             // Parent gets volume control? 
+                             // Plan said volume applies to children. Parent acts as container.
+                             // We might want to set parent gain to 1.0 explicitly.
+                             grouping.gain = 1.0; 
+                             
+                             // 2. Create Single Composite Child
+                             float vol = (float)res.volume / 100.0f;
+                             std::string volPercent = std::to_string(res.volume) + "%";
+                             
+                             Track child;
+                             child.name = res.name.ToStdString(); // Child name same as Grouping? Or "Combined"? User: "One snare child"
+                             // Let's name it the same as the group for clarity, or "Composite"
+                             // Actually, copying the group name is good practice for the main element.
+                             child.name = res.name.ToStdString() + " (" + volPercent + ")";
+                             child.gain = vol;
+                             
+                             // Add Layers
+                             // 1. HitNormal
+                             child.layers.push_back({res.hitNormalBank, SampleType::HitNormal});
+                             
+                             // 2. Additions
+                             if (res.hasWhistle) child.layers.push_back({res.additionsBank, SampleType::HitWhistle});
+                             if (res.hasFinish) child.layers.push_back({res.additionsBank, SampleType::HitFinish});
+                             if (res.hasClap) child.layers.push_back({res.additionsBank, SampleType::HitClap});
+                             
+                             // Set primary display metadata (optional, purely for icon/defaults if we had them)
+                             child.sampleSet = res.hitNormalBank;
+                             child.sampleType = SampleType::HitNormal;
+                             
+                             grouping.children.push_back(child);
+                             
+                             project->tracks.push_back(grouping);
+                             
+                             Refresh();
+                             if (timelineView) timelineView->UpdateVirtualSize();
+                             GetParent()->Refresh(); 
+                         }
+                     }
+                     return;
+                 }
+             }
+        }
+
         std::function<void(Track&, int)> hitTest = [&](Track& track, int indent) {
             if (handled) return; 
             
@@ -649,69 +858,6 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
              }
         }
             
-        // Check "Add Track" Button
-        if (!handled)
-        {
-            int btnH = 30;
-            wxRect addBtnRect(10, y + 10, width - 20, btnH);
-            
-            if (clickX >= addBtnRect.GetX() && clickX <= addBtnRect.GetRight() &&
-                clickY >= addBtnRect.GetY() && clickY <= addBtnRect.GetBottom())
-            {
-             // Open Dialog
-             AddTrackDialog dlg(this);
-             if (dlg.ShowModal() == wxID_OK)
-             {
-                 AddTrackResult res = dlg.GetResult();
-                 if (res.confirmed)
-                 {
-                     // Logic to add track
-                     std::string setStr = (res.bank==SampleSet::Normal)?"normal":(res.bank==SampleSet::Soft?"soft":"drum");
-                     std::string typeStr = (res.type==SampleType::HitNormal)?"hitnormal":(res.type==SampleType::HitWhistle?"hitwhistle":(res.type==SampleType::HitFinish?"hitfinish":"hitclap"));
-                     std::string parentName = setStr + "-" + typeStr;
-                     
-                     Track* parent = nullptr;
-                     for (auto& t : project->tracks) {
-                         if (t.name == parentName) { parent = &t; break; }
-                     }
-                     
-                     if (!parent)
-                     {
-                         Track newParent;
-                         newParent.name = parentName;
-                         newParent.sampleSet = res.bank;
-                         newParent.sampleType = res.type;
-                         newParent.isExpanded = true;
-                         project->tracks.push_back(newParent);
-                         parent = &project->tracks.back();
-                     }
-                     
-                     // Check child volume
-                     int vol = res.volume;
-                     std::string childName = parentName + " (" + std::to_string(vol) + "%)";
-                     
-                     bool childExists = false;
-                     for (auto& c : parent->children) {
-                         if (c.name == childName) { childExists = true; break; }
-                     }
-                     
-                     if (!childExists)
-                     {
-                         Track child;
-                         child.name = childName;
-                         child.sampleSet = res.bank;
-                         child.sampleType = res.type;
-                         child.gain = (float)vol / 100.0f;
-                         parent->children.push_back(child);
-                     }
-                     
-                     Refresh();
-                     if (timelineView) timelineView->UpdateVirtualSize();
-                     GetParent()->Refresh(); // Refresh Timeline
-                 }
-             }
-        }
-        }
     }
     else if (evt.Dragging())
     {

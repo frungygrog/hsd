@@ -43,6 +43,8 @@ add_executable(hitsound-daw-wx
     src/ui/TransportPanel.h
     src/ui/AddTrackDialog.cpp
     src/ui/AddTrackDialog.h
+    src/ui/AddGroupingDialog.cpp
+    src/ui/AddGroupingDialog.h
     src/audio/AudioEngine.cpp
     src/audio/AudioEngine.h
     src/audio/EventPlaybackSource.cpp

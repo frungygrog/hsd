@@ -16,6 +16,14 @@ struct Event
     // Maybe velocity or other params
 };
 
+// Composite Layer Definition
+struct SampleLayer
+{
+    SampleSet bank;
+    SampleType type;
+//  float volumeScale = 1.0f; // Could add later, user said same volume for all additions
+};
+
 struct Track
 {
     std::string name;
@@ -24,6 +32,9 @@ struct Track
     SampleSet sampleSet = SampleSet::Normal;
     SampleType sampleType = SampleType::HitNormal;
     std::string customFilename; // If overridden
+    
+    // Composite Layers (If not empty, these override or augment behavior)
+    std::vector<SampleLayer> layers;
     
     // Playback properties
     double gain = 1.0;
@@ -39,6 +50,9 @@ struct Track
     
     // For drag-and-drop routing when collapsed
     int primaryChildIndex = 0;
+    
+    // Grouping flag (Composite track)
+    bool isGrouping = false;
 };
 
 
