@@ -1,9 +1,8 @@
 #include "MainFrame.h"
 #include "../model/ProjectValidator.h"
 #include <juce_audio_devices/juce_audio_devices.h>
-
-#include "MainFrame.h"
-#include <juce_audio_devices/juce_audio_devices.h>
+#include "ProjectSetupDialog.h"
+#include "../io/OsuParser.h"
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(wxID_OPEN, MainFrame::OnOpen)
@@ -252,31 +251,50 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
         return;
     }
     
-    // Ideally user chooses, but for now pick first
-    juce::File fileToLoad = osuFiles[0];
-    
-    // If multiple, maybe ask? 
-    if (osuFiles.size() > 1)
+    std::vector<std::string> fileNames;
+    for (const auto& f : osuFiles)
+        fileNames.push_back(f.getFileName().toStdString());
+
+    ProjectSetupDialog dlg(this, fileNames);
+    if (dlg.ShowModal() != wxID_OK)
+        return;
+
+    std::string refFilename = dlg.GetSelectedFilename();
+    juce::File referenceFile = dir.getChildFile(refFilename);
+
+    if (dlg.GetSelectedAction() == ProjectSetupDialog::Action::OpenExisting)
     {
-        // Simple logic: prefer the one with most recent modification? Or just prompt (too complex for now?)
-        // Let's just load the first one and notify user?
-        // Or if we can, use a wxSingleChoiceDialog
-        wxArrayString choices;
-        for (const auto& f : osuFiles)
-            choices.Add(f.getFileName().toStdString());
-            
-        wxSingleChoiceDialog choiceDialog(this, "Select a difficulty:", "Multiple .osu files found", choices);
-        if (choiceDialog.ShowModal() == wxID_OK)
+        project = OsuParser::parse(referenceFile);
+    }
+    else
+    {
+        // Start From Scratch
+        // Parse reference to get metadata for naming
+        Project refProject = OsuParser::parse(referenceFile);
+        
+        std::string newFilename = refProject.artist + " - " + refProject.title + " (" + refProject.creator + ") [Hitsounds].osu";
+        // Basic sanitization could be useful but assuming OsuParser gives valid strings for now
+        
+        juce::File targetFile = dir.getChildFile(newFilename);
+        
+        if (targetFile.existsAsFile())
         {
-            int sel = choiceDialog.GetSelection();
-            if (sel >= 0 && sel < osuFiles.size())
-                fileToLoad = osuFiles[sel];
+            int res = wxMessageBox("Target file '" + newFilename + "' already exists. Overwrite?", "File Exists", wxYES_NO | wxICON_QUESTION);
+            if (res != wxYES) return;
+        }
+
+        if (OsuParser::CreateHitsoundDiff(referenceFile, targetFile))
+        {
+            project = OsuParser::parse(targetFile);
         }
         else
+        {
+            wxMessageBox("Failed to create hitsound difficulty.", "Error", wxICON_ERROR);
             return;
+        }
     }
     
-    project = OsuParser::parse(fileToLoad);
+    // Common Loading Logic
     ProjectValidator::Validate(project);
     trackList->SetProject(&project);
     timelineView->SetProject(&project);

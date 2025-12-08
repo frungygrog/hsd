@@ -168,7 +168,8 @@ std::vector<float> AudioEngine::GetWaveform(int numSamples)
 
 void AudioEngine::hiResTimerCallback()
 {
-    if (looping && masterTransport.isPlaying())
+    // Only loop if we have a valid loop region
+    if (looping && masterTransport.isPlaying() && loopStart >= 0 && loopEnd > loopStart)
     {
         double currentPos = masterTransport.getCurrentPosition();
         if (currentPos >= loopEnd - masterOffset)

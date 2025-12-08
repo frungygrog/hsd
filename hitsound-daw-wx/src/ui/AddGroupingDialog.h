@@ -23,6 +23,11 @@ public:
     AddGroupingDialog(wxWindow* parent);
     AddGroupingResult GetResult() const { return result; }
     
+    // For edit mode: pre-populate fields
+    void SetValues(const wxString& name, SampleSet normalBank, SampleSet addBank, 
+                   bool whistle, bool finish, bool clap, int volume);
+    void SetEditMode(bool edit);
+    
 private:
     void OnOK(wxCommandEvent& evt);
     
@@ -35,7 +40,9 @@ private:
     wxCheckBox* chkClap;
     
     wxSlider* volumeSlider;
+    wxButton* okBtn;
     
+    bool isEditMode = false;
     AddGroupingResult result;
     
     wxDECLARE_EVENT_TABLE();

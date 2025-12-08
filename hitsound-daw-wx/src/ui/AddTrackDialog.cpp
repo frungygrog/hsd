@@ -4,6 +4,7 @@
 #include <wx/choice.h>
 #include <wx/slider.h>
 #include <wx/button.h>
+#include <wx/textctrl.h>
 
 wxBEGIN_EVENT_TABLE(AddTrackDialog, wxDialog)
     EVT_BUTTON(wxID_OK, AddTrackDialog::OnOK)
@@ -19,6 +20,13 @@ AddTrackDialog::AddTrackDialog(wxWindow* parent)
     result.volume = 100;
 
     wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
+    
+    // Name
+    wxBoxSizer* nameSizer = new wxBoxSizer(wxHORIZONTAL);
+    nameSizer->Add(new wxStaticText(this, wxID_ANY, "Name:"), 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
+    nameCtrl = new wxTextCtrl(this, wxID_ANY, "");
+    nameSizer->Add(nameCtrl, 1, wxEXPAND | wxALL, 5);
+    mainSizer->Add(nameSizer, 0, wxEXPAND | wxALL, 5);
     
     // Bank
     wxBoxSizer* bankSizer = new wxBoxSizer(wxHORIZONTAL);
@@ -47,7 +55,7 @@ AddTrackDialog::AddTrackDialog(wxWindow* parent)
     mainSizer->AddStretchSpacer();
     wxBoxSizer* btnSizer = new wxBoxSizer(wxHORIZONTAL);
     
-    wxButton* okBtn = new wxButton(this, wxID_OK, "Add");
+    okBtn = new wxButton(this, wxID_OK, "Add");
     wxButton* cancelBtn = new wxButton(this, wxID_CANCEL, "Cancel");
     
     btnSizer->AddStretchSpacer();
@@ -60,9 +68,44 @@ AddTrackDialog::AddTrackDialog(wxWindow* parent)
     Center();
 }
 
+void AddTrackDialog::SetValues(const wxString& name, SampleSet bank, SampleType type, int volume)
+{
+    nameCtrl->SetValue(name);
+    
+    // Set bank selection
+    switch (bank) {
+        case SampleSet::Normal: bankChoice->SetSelection(0); break;
+        case SampleSet::Soft: bankChoice->SetSelection(1); break;
+        case SampleSet::Drum: bankChoice->SetSelection(2); break;
+    }
+    
+    // Set type selection
+    switch (type) {
+        case SampleType::HitNormal: typeChoice->SetSelection(0); break;
+        case SampleType::HitWhistle: typeChoice->SetSelection(1); break;
+        case SampleType::HitClap: typeChoice->SetSelection(2); break;
+        case SampleType::HitFinish: typeChoice->SetSelection(3); break;
+    }
+    
+    volumeSlider->SetValue(volume);
+}
+
+void AddTrackDialog::SetEditMode(bool edit)
+{
+    isEditMode = edit;
+    if (edit) {
+        SetTitle("Edit Track");
+        okBtn->SetLabel("Save");
+    } else {
+        SetTitle("Add Track");
+        okBtn->SetLabel("Add");
+    }
+}
+
 void AddTrackDialog::OnOK(wxCommandEvent& evt)
 {
     result.confirmed = true;
+    result.name = nameCtrl->GetValue();
     
     int bankIdx = bankChoice->GetSelection();
     if (bankIdx == 0) result.bank = SampleSet::Normal;

@@ -78,7 +78,7 @@ AddGroupingDialog::AddGroupingDialog(wxWindow* parent)
     mainSizer->AddStretchSpacer();
     wxBoxSizer* btnSizer = new wxBoxSizer(wxHORIZONTAL);
     
-    wxButton* okBtn = new wxButton(this, wxID_OK, "Add");
+    okBtn = new wxButton(this, wxID_OK, "Add");
     wxButton* cancelBtn = new wxButton(this, wxID_CANCEL, "Cancel");
     
     btnSizer->AddStretchSpacer();
@@ -89,6 +89,44 @@ AddGroupingDialog::AddGroupingDialog(wxWindow* parent)
     
     SetSizerAndFit(mainSizer);
     Center();
+}
+
+void AddGroupingDialog::SetValues(const wxString& name, SampleSet normalBank, SampleSet addBank, 
+                                   bool whistle, bool finish, bool clap, int volume)
+{
+    nameCtrl->SetValue(name);
+    
+    // Set normalBank selection
+    switch (normalBank) {
+        case SampleSet::Normal: normalBankChoice->SetSelection(0); break;
+        case SampleSet::Soft: normalBankChoice->SetSelection(1); break;
+        case SampleSet::Drum: normalBankChoice->SetSelection(2); break;
+    }
+    
+    // Set additionsBank selection
+    switch (addBank) {
+        case SampleSet::Normal: additionsBankChoice->SetSelection(0); break;
+        case SampleSet::Soft: additionsBankChoice->SetSelection(1); break;
+        case SampleSet::Drum: additionsBankChoice->SetSelection(2); break;
+    }
+    
+    chkWhistle->SetValue(whistle);
+    chkFinish->SetValue(finish);
+    chkClap->SetValue(clap);
+    
+    volumeSlider->SetValue(volume);
+}
+
+void AddGroupingDialog::SetEditMode(bool edit)
+{
+    isEditMode = edit;
+    if (edit) {
+        SetTitle("Edit Grouping");
+        okBtn->SetLabel("Save");
+    } else {
+        SetTitle("Add Grouping");
+        okBtn->SetLabel("Add");
+    }
 }
 
 void AddGroupingDialog::OnOK(wxCommandEvent& evt)

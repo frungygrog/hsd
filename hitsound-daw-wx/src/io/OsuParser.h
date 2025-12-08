@@ -10,4 +10,5 @@ class OsuParser
 {
 public:
     static Project parse(const juce::File& file);
+    static bool CreateHitsoundDiff(const juce::File& referenceFile, const juce::File& targetFile);
 };

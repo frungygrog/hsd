@@ -249,3 +249,117 @@ Project OsuParser::parse(const juce::File& file)
     
     return project;
 }
+
+bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::File& targetFile)
+{
+    if (!referenceFile.existsAsFile())
+        return false;
+
+    juce::StringArray lines;
+    referenceFile.readLines(lines);
+
+    juce::String audioFilename;
+    juce::String title, artist, creator;
+    std::vector<juce::String> timingPoints;
+    juce::String currentSection;
+    bool inTimingPoints = false;
+    
+    // Parse Reference
+    for (const auto& line : lines)
+    {
+        auto t = line.trim();
+        if (t.startsWith("[")) 
+        { 
+            currentSection = t.removeCharacters("[]"); 
+            inTimingPoints = (currentSection == "TimingPoints");
+            continue; 
+        }
+        if (t.isEmpty() || t.startsWith("//")) continue;
+
+        if (currentSection == "General")
+        {
+            if (t.startsWith("AudioFilename:"))
+                audioFilename = t.substring(14).trim();
+        }
+        else if (currentSection == "Metadata")
+        {
+            if (t.startsWith("Title:"))
+                title = t.substring(6).trim();
+            else if (t.startsWith("Artist:"))
+                artist = t.substring(7).trim();
+            else if (t.startsWith("Creator:"))
+                creator = t.substring(8).trim();
+        }
+        else if (inTimingPoints)
+        {
+            timingPoints.push_back(line); // Keep original line to preserve precision
+        }
+    }
+
+    // Build New Content
+    juce::String newLine = "\r\n";
+    juce::String content;
+    
+    content += "osu file format v14" + newLine;
+    content += newLine;
+    content += "[General]" + newLine;
+    content += "AudioFilename: " + audioFilename + newLine;
+    content += "AudioLeadIn: 0" + newLine;
+    content += "PreviewTime: -1" + newLine;
+    content += "Countdown: 0" + newLine;
+    content += "SampleSet: Normal" + newLine;
+    content += "StackLeniency: 0.7" + newLine;
+    content += "Mode: 0" + newLine;
+    content += "LetterboxInBreaks: 0" + newLine;
+    content += "WidescreenStoryboard: 0" + newLine;
+    content += newLine;
+    
+    content += "[Editor]" + newLine;
+    content += "DistanceSpacing: 1.0" + newLine;
+    content += "BeatDivisor: 4" + newLine;
+    content += "GridSize: 32" + newLine;
+    content += "TimelineZoom: 1" + newLine;
+    content += newLine;
+    
+    content += "[Metadata]" + newLine;
+    content += "Title:" + title + newLine;
+    content += "TitleUnicode:" + title + newLine;
+    content += "Artist:" + artist + newLine;
+    content += "ArtistUnicode:" + artist + newLine;
+    content += "Creator:" + creator + newLine;
+    content += "Version:Hitsounds" + newLine;
+    content += "Source:" + newLine;
+    content += "Tags:" + newLine;
+    content += "BeatmapID:0" + newLine;
+    content += "BeatmapSetID:-1" + newLine;
+    content += newLine;
+    
+    content += "[Difficulty]" + newLine;
+    content += "HPDrainRate:5" + newLine;
+    content += "CircleSize:5" + newLine;
+    content += "OverallDifficulty:5" + newLine;
+    content += "ApproachRate:5" + newLine;
+    content += "SliderMultiplier:1.4" + newLine;
+    content += "SliderTickRate:1" + newLine;
+    content += newLine;
+    
+    content += "[Events]" + newLine;
+    content += "//Background and Video events" + newLine;
+    content += "//Break Periods" + newLine;
+    content += "//Storyboard Layer 0 (Background)" + newLine;
+    content += "//Storyboard Layer 1 (Fail)" + newLine;
+    content += "//Storyboard Layer 2 (Pass)" + newLine;
+    content += "//Storyboard Layer 3 (Foreground)" + newLine;
+    content += "//Storyboard Layer 4 (Overlay)" + newLine;
+    content += "//Storyboard Sound Samples" + newLine;
+    content += newLine;
+    
+    content += "[TimingPoints]" + newLine;
+    for (const auto& tp : timingPoints)
+        content += tp + newLine;
+    content += newLine;
+    
+    content += "[HitObjects]" + newLine;
+    
+    return targetFile.replaceWithText(content);
+}

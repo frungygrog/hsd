@@ -721,6 +721,14 @@ void TimelineView::OnMouseEvents(wxMouseEvent& evt)
         else if (isDraggingLoop)
         {
             if (loopEnd < loopStart) std::swap(loopStart, loopEnd);
+            
+            // Enforce minimum loop size (50ms) to detect click vs drag
+            if ((loopEnd - loopStart) < 0.05)
+            {
+                loopStart = -1.0;
+                loopEnd = -1.0;
+            }
+            
             isDraggingLoop = false;
             Refresh();
             if (OnLoopPointsChanged) OnLoopPointsChanged(loopStart, loopEnd);

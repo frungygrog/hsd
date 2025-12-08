@@ -22,6 +22,8 @@ public:
 private:
     void OnPaint(wxPaintEvent& evt);
     void OnMouseEvents(wxMouseEvent& evt);
+    void OnContextMenu(wxContextMenuEvent& evt);
+    void OnCaptureLost(wxMouseCaptureLostEvent& evt);
     void OnSize(wxSizeEvent& evt);
     
     Project* project = nullptr;
