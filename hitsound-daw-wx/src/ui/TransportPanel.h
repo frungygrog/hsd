@@ -28,6 +28,7 @@ private:
     void OnLoop(wxCommandEvent& evt);
     
     void OnSnapChange(wxCommandEvent& evt);
+    void OnDefaultBankChange(wxCommandEvent& evt);
     
     void OnToolSelect(wxCommandEvent& evt);
     void OnToolDraw(wxCommandEvent& evt);
@@ -48,6 +49,7 @@ private:
     // Metadata
     wxStaticText* lblZoom;
     wxChoice* snapChoice;
+    wxChoice* defaultBankChoice;
     
 
     

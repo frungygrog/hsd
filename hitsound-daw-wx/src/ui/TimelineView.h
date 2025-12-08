@@ -31,6 +31,9 @@ public:
     
     void SetGridDivisor(int divisor) { gridDivisor = divisor; Refresh(); }
     
+    // Default bank for auto-hitnormal placement
+    void SetDefaultHitnormalBank(std::optional<SampleSet> bank) { defaultHitnormalBank = bank; }
+    
     // Rendering
     void OnPaint(wxPaintEvent& evt);
     void OnMouseEvents(wxMouseEvent& evt);
@@ -62,6 +65,9 @@ private:
     // Grid & Zoom
     double pixelsPerSecond = 100.0;
     int gridDivisor = 4;
+    
+    // Default bank for auto-hitnormal (nullopt = disabled)
+    std::optional<SampleSet> defaultHitnormalBank;
     
     int trackHeight = 100;
     
@@ -119,6 +125,9 @@ private:
     // Helpers
     std::vector<Track*> GetVisibleTracks();
     void ValidateHitsounds();
+    
+    // Find or create a HitNormal track for the given bank with matching volume
+    Track* FindOrCreateHitnormalTrack(SampleSet bank, double volume);
     
     const Project::TimingPoint* GetTimingPointAt(double time);
     double SnapToGrid(double time);

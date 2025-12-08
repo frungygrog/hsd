@@ -1,6 +1,7 @@
 #include "TransportPanel.h"
 #include "../audio/AudioEngine.h"
 #include "TimelineView.h"
+#include "../model/SampleTypes.h"
 #include <wx/graphics.h>
 #include <wx/dcbuffer.h>
 #include <wx/dcmemory.h>
@@ -13,9 +14,9 @@ wxBEGIN_EVENT_TABLE(TransportPanel, wxPanel)
     EVT_TOGGLEBUTTON(1003, TransportPanel::OnLoop)
     EVT_TOGGLEBUTTON(2001, TransportPanel::OnToolSelect)
     EVT_TOGGLEBUTTON(2002, TransportPanel::OnToolDraw)
-    EVT_TOGGLEBUTTON(2002, TransportPanel::OnToolDraw)
     // EVT_TOGGLEBUTTON(2003, TransportPanel::OnToolErase) removed
     EVT_CHOICE(3001, TransportPanel::OnSnapChange)
+    EVT_CHOICE(3002, TransportPanel::OnDefaultBankChange)
 wxEND_EVENT_TABLE()
 
 TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineView* timeline)
@@ -91,7 +92,22 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     snapChoice->SetSelection(3); // Default 1/4
     mainSizer->Add(snapChoice, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
     
-    mainSizer->AddSpacer(15);
+    mainSizer->AddSpacer(10);
+    
+    // Default Bank Selector
+    wxStaticText* lblBank = new wxStaticText(this, wxID_ANY, "Bank:");
+    mainSizer->Add(lblBank, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+    
+    wxArrayString bankChoices;
+    bankChoices.Add("None");
+    bankChoices.Add("Normal");
+    bankChoices.Add("Soft");
+    bankChoices.Add("Drum");
+    
+    defaultBankChoice = new wxChoice(this, 3002, wxDefaultPosition, wxSize(70, 30), bankChoices);
+    defaultBankChoice->SetSelection(0); // Default: None
+    defaultBankChoice->SetToolTip("Auto-place HitNormal when placing additions");
+    mainSizer->Add(defaultBankChoice, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
     
     // Time Display
     lblTime = new wxStaticText(this, wxID_ANY, "00:00:000");
@@ -224,6 +240,28 @@ void TransportPanel::OnSnapChange(wxCommandEvent& evt)
     }
     
     timelineView->SetGridDivisor(divisor);
+}
+
+void TransportPanel::OnDefaultBankChange(wxCommandEvent& evt)
+{
+    if (!timelineView) return;
+    
+    int sel = defaultBankChoice->GetSelection();
+    
+    if (sel == 0) {
+        // "None" - disable auto-hitnormal
+        timelineView->SetDefaultHitnormalBank(std::nullopt);
+    } else {
+        // 1=Normal, 2=Soft, 3=Drum
+        SampleSet bank;
+        switch (sel) {
+            case 1: bank = SampleSet::Normal; break;
+            case 2: bank = SampleSet::Soft; break;
+            case 3: bank = SampleSet::Drum; break;
+            default: bank = SampleSet::Normal; break;
+        }
+        timelineView->SetDefaultHitnormalBank(bank);
+    }
 }
 
 wxBitmap TransportPanel::LoadIcon(const std::string& filename, const wxColor& color)

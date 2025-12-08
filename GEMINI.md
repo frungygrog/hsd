@@ -30,7 +30,11 @@ This document provides a comprehensive technical overview of the Hitsound DAW pr
   │ │ ├── MainFrame.cpp # Main Window Frame 
   │ │ ├── TimelineView.cpp # Custom wxScrolledWindow for timeline rendering 
   │ │ ├── TrackList.cpp # Left panel track controls 
-  │ │ └── TransportPanel.cpp # Playback & Zoom controls
+  │ │ ├── TransportPanel.cpp # Playback & Zoom controls
+  │ │ ├── AddTrackDialog.cpp/.h # Dialog for adding/editing standard tracks
+  │ │ ├── AddGroupingDialog.cpp/.h # Dialog for adding/editing groupings
+  │ │ └── ProjectSetupDialog.cpp/.h # Project configuration dialog
+
 
 ---
 
@@ -83,6 +87,17 @@ A custom `wxScrolledWindow` that performs high-performance 2D drawing.
     *   **Selection**: Supports Click, Ctrl+Click, and Marquee selection.
     *   **Drag & Drop**: Implements "Ghost" dragging visualization before committing changes via `UndoManager`.
     *   **Looping**: Dragging the ruler creates a loop region.
+
+### E. Track Management (`ui/TrackList.cpp`)
+The TrackList panel provides track organization and context menu operations.
+*   **Header Buttons**: "Add Track" and "Add Grouping" buttons in ruler area.
+*   **Context Menus**:
+    *   **Parent Track/Grouping**: Right-click shows "Add Child", "Edit", "Delete".
+    *   **Child Track**: Right-click shows "Delete" only.
+*   **Edit Dialogs**:
+    *   `AddTrackDialog`: Configure name, bank (Normal/Soft/Drum), type (HitNormal/Whistle/Clap/Finish), volume. Supports edit mode via `SetEditMode(true)` and `SetValues()`.
+    *   `AddGroupingDialog`: Configure name, HitNormal bank, additions bank, addition types (Whistle/Finish/Clap checkboxes), volume. Supports edit mode similarly.
+*   **Track Deletion**: Parent deletion removes all children; child deletion only removes that child and adjusts `primaryChildIndex`.
 ---
 
 ## 4. "Last Christmas" Data Analysis

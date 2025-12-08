@@ -41,6 +41,46 @@ private:
 };
 
 // -----------------------------------------------------------------------------
+// Add Multiple Events (Draw Tool with auto-hitnormal)
+// -----------------------------------------------------------------------------
+class AddMultipleEventsCommand : public Command
+{
+public:
+    struct Item {
+        Track* track;
+        Event evt;
+    };
+
+    AddMultipleEventsCommand(const std::vector<Item>& items, std::function<void()> refreshCallback)
+        : items(items), refresh(refreshCallback) {}
+
+    void Do() override {
+        for (const auto& item : items) {
+            item.track->events.push_back(item.evt);
+        }
+        refresh();
+    }
+
+    void Undo() override {
+        for (const auto& item : items) {
+            auto it = std::find_if(item.track->events.rbegin(), item.track->events.rend(), 
+                [&](const Event& e) { return e.time == item.evt.time && e.volume == item.evt.volume; });
+            
+            if (it != item.track->events.rend()) {
+                item.track->events.erase(std::next(it).base());
+            }
+        }
+        refresh();
+    }
+
+    std::string GetDescription() const override { return "Add Notes"; }
+
+private:
+    std::vector<Item> items;
+    std::function<void()> refresh;
+};
+
+// -----------------------------------------------------------------------------
 // Remove Events (Delete)
 // -----------------------------------------------------------------------------
 class RemoveEventsCommand : public Command

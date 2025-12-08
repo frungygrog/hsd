@@ -4,6 +4,13 @@
 #include <optional>
 #include "SampleTypes.h"
 
+// Tri-state validation for events
+enum class ValidationState {
+    Valid,      // Normal state (blue) - properly backed hitsound
+    Invalid,    // Error state (red) - e.g., conflicting addition banks
+    Warning     // Warning state (pink) - e.g., addition without hitnormal backing
+};
+
 struct Event
 {
     double time; // Seconds or Milliseconds? Osu is ms. Let's use seconds internally for audio? Or ms for DAW UI?
@@ -12,7 +19,7 @@ struct Event
                  // Let's use double seconds for precision in DAW.
     
     double volume = 1.0;
-    bool isValid = true;
+    ValidationState validationState = ValidationState::Valid;
     // Maybe velocity or other params
 };
 

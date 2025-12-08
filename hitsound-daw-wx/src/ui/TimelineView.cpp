@@ -305,15 +305,32 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
                     
                     if (isSelected)
                     {
-                        if (!event.isValid) dc.SetBrush(wxBrush(wxColour(255, 165, 0))); // Orange for invalid & selected
-                        else dc.SetBrush(wxBrush(wxColour(255, 255, 0))); // Yellow for valid & selected
+                        switch (event.validationState) {
+                            case ValidationState::Invalid:
+                                dc.SetBrush(wxBrush(wxColour(255, 165, 0))); // Orange for invalid & selected
+                                break;
+                            case ValidationState::Warning:
+                                dc.SetBrush(wxBrush(wxColour(255, 180, 200))); // Light pink for warning & selected
+                                break;
+                            default:
+                                dc.SetBrush(wxBrush(wxColour(255, 255, 0))); // Yellow for valid & selected
+                                break;
+                        }
                     }
                     else
                     {
-                        if (!event.isValid) dc.SetBrush(wxBrush(wxColour(255, 50, 50)));
-                        else dc.SetBrush(wxBrush(color));
-                    }
-                    
+                        switch (event.validationState) {
+                            case ValidationState::Invalid:
+                                dc.SetBrush(wxBrush(wxColour(255, 50, 50))); // Red for invalid
+                                break;
+                            case ValidationState::Warning:
+                                dc.SetBrush(wxBrush(wxColour(255, 100, 180))); // Pink for warning
+                                break;
+                            default:
+                                dc.SetBrush(wxBrush(color)); // Blue for valid
+                                break;
+                        }
+                    }                    
                     dc.DrawRectangle(x - 2, y + 2, 4, currentHeight - 4); // Adjusted
                     
                     // Selection Highlight Border (White) - kept for extra visibility
@@ -399,10 +416,17 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
                      
                      // Visual style for ghosts
                      dc.SetPen(wxPen(wxColour(255, 255, 255), 1, wxPENSTYLE_SHORT_DASH));
-                     if (ghost.evt.isValid)
-                        dc.SetBrush(wxBrush(wxColour(255, 255, 0, 180))); 
-                     else
-                        dc.SetBrush(wxBrush(wxColour(255, 100, 0, 180)));
+                     switch (ghost.evt.validationState) {
+                         case ValidationState::Invalid:
+                             dc.SetBrush(wxBrush(wxColour(255, 100, 0, 180)));
+                             break;
+                         case ValidationState::Warning:
+                             dc.SetBrush(wxBrush(wxColour(255, 150, 180, 180)));
+                             break;
+                         default:
+                             dc.SetBrush(wxBrush(wxColour(255, 255, 0, 180)));
+                             break;
+                     }
                         
                      dc.DrawRectangle(x - 2, gy + 2, 4, currentHeight - 4);
                 }
@@ -595,6 +619,34 @@ void TimelineView::OnMouseEvents(wxMouseEvent& evt)
                  newEvent.time = t;
                  
                  auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
+                 
+                 // Check if we should auto-add a hitnormal
+                 bool isAddition = (target->sampleType == SampleType::HitWhistle ||
+                                    target->sampleType == SampleType::HitFinish ||
+                                    target->sampleType == SampleType::HitClap);
+                 
+                 if (isAddition && defaultHitnormalBank.has_value()) {
+                     // Find or create the appropriate hitnormal track
+                     Track* hitnormalTrack = FindOrCreateHitnormalTrack(
+                         defaultHitnormalBank.value(),
+                         target->gain  // Match the target track's volume
+                     );
+                     
+                     if (hitnormalTrack) {
+                         // Add both events using composite command for undo support
+                         Event hnEvent;
+                         hnEvent.time = t;
+                         
+                         std::vector<AddMultipleEventsCommand::Item> items;
+                         items.push_back({hitnormalTrack, hnEvent});
+                         items.push_back({target, newEvent});
+                         
+                         undoManager.PushCommand(std::make_unique<AddMultipleEventsCommand>(items, refreshFn));
+                         return;
+                     }
+                 }
+                 
+                 // Default behavior: just add the single event
                  undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
                  return;
             }
@@ -1388,7 +1440,7 @@ void TimelineView::ValidateHitsounds()
     std::function<void(std::vector<Track>&)> traverse = [&](std::vector<Track>& tracks) {
         for (auto& t : tracks) {
             for (auto& e : t.events) {
-                e.isValid = true; // Reset
+                e.validationState = ValidationState::Valid; // Reset
                 int64_t ms = (int64_t)std::round(e.time * 1000.0);
                 timeMap[ms].push_back({&e, &t});
             }
@@ -1416,12 +1468,97 @@ void TimelineView::ValidateHitsounds()
 
         // Rule 1: Max 1 HitNormal
         if (hitNormals.size() > 1) {
-            for (auto& ref : hitNormals) ref.evt->isValid = false;
+            for (auto& ref : hitNormals) ref.evt->validationState = ValidationState::Invalid;
         }
 
         // Rule 2: Additions must share same bank
         if (additionBanks.size() > 1) {
-            for (auto& ref : additions) ref.evt->isValid = false;
+            for (auto& ref : additions) ref.evt->validationState = ValidationState::Invalid;
+        }
+
+        // Rule 3: Additions should be backed by a HitNormal (Warning if not)
+        if (hitNormals.empty() && !additions.empty()) {
+            for (auto& ref : additions) {
+                // Only set warning if not already invalid
+                if (ref.evt->validationState == ValidationState::Valid)
+                    ref.evt->validationState = ValidationState::Warning;
+            }
         }
     }
+}
+
+Track* TimelineView::FindOrCreateHitnormalTrack(SampleSet bank, double volume)
+{
+    if (!project) return nullptr;
+    
+    // Helper to get bank name (lowercase)
+    auto getBankName = [](SampleSet s) -> std::string {
+        switch (s) {
+            case SampleSet::Normal: return "normal";
+            case SampleSet::Soft: return "soft";
+            case SampleSet::Drum: return "drum";
+            default: return "normal";
+        }
+    };
+    
+    std::string bankName = getBankName(bank);
+    std::string parentName = bankName + "-hitnormal";
+    
+    // Format volume for child name
+    int volumePercent = static_cast<int>(volume * 100.0 + 0.5);
+    std::string volSuffix = " (" + std::to_string(volumePercent) + "%)";
+    std::string childName = bankName + "-hitnormal" + volSuffix;
+    
+    // Search for existing HitNormal parent track with matching bank
+    for (auto& track : project->tracks) {
+        if (track.sampleType == SampleType::HitNormal && track.sampleSet == bank) {
+            // Found parent - search for matching volume child
+            for (auto& child : track.children) {
+                // Match by volume percentage in name
+                if (child.name.find(volSuffix) != std::string::npos) {
+                    return &child;
+                }
+            }
+            
+            // No matching volume child - create one
+            Track newChild;
+            newChild.name = childName;
+            newChild.sampleSet = bank;
+            newChild.sampleType = SampleType::HitNormal;
+            newChild.gain = volume;
+            
+            track.children.push_back(newChild);
+            track.isExpanded = true;
+            
+            // Update primary child index if this is first child
+            if (track.children.size() == 1) {
+                track.primaryChildIndex = 0;
+            }
+            
+            return &track.children.back();
+        }
+    }
+    
+    // No existing parent track found - create new parent + child
+    Track newParent;
+    newParent.name = parentName;
+    newParent.sampleSet = bank;
+    newParent.sampleType = SampleType::HitNormal;
+    newParent.gain = 1.0; // Parent at full volume
+    newParent.isExpanded = true;
+    newParent.primaryChildIndex = 0;
+    
+    // Create child with the actual volume
+    Track newChild;
+    newChild.name = childName;
+    newChild.sampleSet = bank;
+    newChild.sampleType = SampleType::HitNormal;
+    newChild.gain = volume;
+    
+    newParent.children.push_back(newChild);
+    
+    project->tracks.push_back(newParent);
+    
+    // Return pointer to the child (where events are placed)
+    return &project->tracks.back().children.back();
 }

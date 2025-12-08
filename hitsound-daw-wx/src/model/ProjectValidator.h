@@ -83,14 +83,14 @@ public:
                 // Usually helpful to mark all to show the group is bad.
                 for (auto* e : slice.events)
                 {
-                    e->isValid = false;
+                    e->validationState = ValidationState::Invalid;
                 }
             }
             else
             {
                 for (auto* e : slice.events)
                 {
-                    e->isValid = true;
+                    e->validationState = ValidationState::Valid;
                 }
             }
         }
