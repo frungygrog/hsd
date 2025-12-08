@@ -633,15 +633,47 @@ void TimelineView::OnMouseEvents(wxMouseEvent& evt)
                      );
                      
                      if (hitnormalTrack) {
-                         // Add both events using composite command for undo support
-                         Event hnEvent;
-                         hnEvent.time = t;
+                         // Check if ANY hitnormal already exists at this timestamp (across all banks)
+                         bool hitnormalExists = false;
+                         for (auto& track : project->tracks) {
+                             if (track.sampleType != SampleType::HitNormal) continue;
+                             
+                             // Check parent track events
+                             for (const auto& evt : track.events) {
+                                 if (std::abs(evt.time - t) < 0.001) {
+                                     hitnormalExists = true;
+                                     break;
+                                 }
+                             }
+                             if (hitnormalExists) break;
+                             
+                             // Check child track events
+                             for (auto& child : track.children) {
+                                 for (const auto& evt : child.events) {
+                                     if (std::abs(evt.time - t) < 0.001) {
+                                         hitnormalExists = true;
+                                         break;
+                                     }
+                                 }
+                                 if (hitnormalExists) break;
+                             }
+                             if (hitnormalExists) break;
+                         }
                          
-                         std::vector<AddMultipleEventsCommand::Item> items;
-                         items.push_back({hitnormalTrack, hnEvent});
-                         items.push_back({target, newEvent});
-                         
-                         undoManager.PushCommand(std::make_unique<AddMultipleEventsCommand>(items, refreshFn));
+                         if (hitnormalExists) {
+                             // Only add the addition event, skip the hitnormal
+                             undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
+                         } else {
+                             // Add both events using composite command for undo support
+                             Event hnEvent;
+                             hnEvent.time = t;
+                             
+                             std::vector<AddMultipleEventsCommand::Item> items;
+                             items.push_back({hitnormalTrack, hnEvent});
+                             items.push_back({target, newEvent});
+                             
+                             undoManager.PushCommand(std::make_unique<AddMultipleEventsCommand>(items, refreshFn));
+                         }
                          return;
                      }
                  }

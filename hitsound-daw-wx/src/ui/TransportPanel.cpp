@@ -7,6 +7,7 @@
 #include <wx/dcmemory.h>
 #include <wx/settings.h>
 #include <wx/file.h>
+#include <wx/statline.h>
 
 wxBEGIN_EVENT_TABLE(TransportPanel, wxPanel)
     EVT_BUTTON(1001, TransportPanel::OnPlay)
@@ -22,44 +23,44 @@ wxEND_EVENT_TABLE()
 TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineView* timeline)
     : wxPanel(parent, wxID_ANY), audioEngine(engine), timelineView(timeline)
 {
+    // Main horizontal sizer for the entire panel
     wxBoxSizer* mainSizer = new wxBoxSizer(wxHORIZONTAL);
-    
-    // LoadIcon helper moved to member function
-
     
     // Define Colors
     wxColor colPlay(0, 180, 0);  // Green
-    wxColor colPause(0, 0, 180); // Blue
     wxColor colStop(180, 0, 0);  // Red
     wxColor colBlack(*wxBLACK);
-    wxColor colActive(0, 120, 215); // Standard highlighting blue? Or Green? 
-    // User said "Same with loop for when it's selected" -> imply distinct color.
-    // Let's use Green for Loop enabled?
-    wxColor colLoop(0, 180, 0);
 
-    // Transport Controls
-    // Play - Green
+    // === LEFT COLUMN: Transport buttons (top) + Tools (bottom) ===
+    wxBoxSizer* leftColumnSizer = new wxBoxSizer(wxVERTICAL);
+    
+    // Transport buttons row
+    wxBoxSizer* transportRowSizer = new wxBoxSizer(wxHORIZONTAL);
+    
     btnPlay = new wxBitmapButton(this, 1001, wxBitmap(), wxDefaultPosition, wxSize(40, 40));
     btnPlay->SetBitmap(LoadIcon("play.svg", colPlay));
     btnPlay->SetToolTip("Play/Pause");
     
-    // Stop - Red (Square)
     btnStop = new wxBitmapButton(this, 1002, wxBitmap(), wxDefaultPosition, wxSize(40, 40));
     btnStop->SetBitmap(LoadIcon("stop.svg", colStop));
     btnStop->SetToolTip("Stop");
     
-    // Loop - Default Black
     btnLoop = new wxToggleButton(this, 1003, "", wxDefaultPosition, wxSize(40, 40));
     btnLoop->SetBitmap(LoadIcon("loop.svg", colBlack));
     btnLoop->SetToolTip("Loop");
     
-    mainSizer->Add(btnPlay, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
-    mainSizer->Add(btnStop, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
-    mainSizer->Add(btnLoop, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+    transportRowSizer->Add(btnPlay, 0, wxRIGHT, 2);
+    transportRowSizer->Add(btnStop, 0, wxRIGHT, 2);
+    transportRowSizer->Add(btnLoop, 0, 0);
     
-    mainSizer->AddSpacer(15);
+    leftColumnSizer->Add(transportRowSizer, 0, wxBOTTOM, 2);
     
-    // Tools - Black by default
+    // Tools row - directly below transport with minimal gap
+    wxBoxSizer* toolsRowSizer = new wxBoxSizer(wxHORIZONTAL);
+    
+    wxStaticText* lblTools = new wxStaticText(this, wxID_ANY, "Tools:");
+    toolsRowSizer->Add(lblTools, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 4);
+    
     btnToolSelect = new wxToggleButton(this, 2001, "", wxDefaultPosition, wxSize(30, 30));
     btnToolSelect->SetBitmap(LoadIcon("select.svg", colBlack));
     btnToolSelect->SetToolTip("Select Tool");
@@ -68,16 +69,48 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     btnToolDraw->SetBitmap(LoadIcon("pencil.svg", colBlack)); 
     btnToolDraw->SetToolTip("Draw Tool");
     
-    // Erase Removed
-    
     btnToolSelect->SetValue(true);
     
-    mainSizer->Add(btnToolSelect, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
-    mainSizer->Add(btnToolDraw, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
+    toolsRowSizer->Add(btnToolSelect, 0, wxRIGHT, 2);
+    toolsRowSizer->Add(btnToolDraw, 0, 0);
     
-    mainSizer->AddSpacer(15);
+    leftColumnSizer->Add(toolsRowSizer, 0, 0);
     
-    // Snap Control
+    mainSizer->Add(leftColumnSizer, 0, wxALL, 4);
+    
+    mainSizer->AddSpacer(10);
+    
+    // === TIME DISPLAY - Vertically centered ===
+    lblTime = new wxStaticText(this, wxID_ANY, "00:00:000");
+    wxFont timeFont = lblTime->GetFont();
+    timeFont.SetPointSize(14);
+    timeFont.SetWeight(wxFONTWEIGHT_BOLD);
+    lblTime->SetFont(timeFont);
+    mainSizer->Add(lblTime, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
+    
+    // === VERTICAL DIVIDER after time ===
+    wxStaticLine* divider = new wxStaticLine(this, wxID_ANY, wxDefaultPosition, wxSize(1, 55), wxLI_VERTICAL);
+    mainSizer->Add(divider, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT | wxLEFT, 10);
+    
+    // === Bank/Snap Dropdowns - Stacked Vertically, centered ===
+    wxFlexGridSizer* dropdownGrid = new wxFlexGridSizer(2, 2, 2, 5); // 2 rows, 2 cols, 2px vgap, 5px hgap
+    
+    // Bank Row
+    wxStaticText* lblBank = new wxStaticText(this, wxID_ANY, "Bank:");
+    wxArrayString bankChoices;
+    bankChoices.Add("None");
+    bankChoices.Add("Normal");
+    bankChoices.Add("Soft");
+    bankChoices.Add("Drum");
+    defaultBankChoice = new wxChoice(this, 3002, wxDefaultPosition, wxSize(70, -1), bankChoices);
+    defaultBankChoice->SetSelection(0);
+    defaultBankChoice->SetToolTip("Auto-place HitNormal when placing additions");
+    
+    dropdownGrid->Add(lblBank, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
+    dropdownGrid->Add(defaultBankChoice, 0, wxALIGN_CENTER_VERTICAL);
+    
+    // Snap Row
+    wxStaticText* lblSnap = new wxStaticText(this, wxID_ANY, "Snap:");
     wxArrayString choices;
     choices.Add("1/1");
     choices.Add("1/2");
@@ -87,49 +120,30 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     choices.Add("1/8");
     choices.Add("1/12");
     choices.Add("1/16");
-    
-    snapChoice = new wxChoice(this, 3001, wxDefaultPosition, wxSize(60, 30), choices);
+    snapChoice = new wxChoice(this, 3001, wxDefaultPosition, wxSize(70, -1), choices);
     snapChoice->SetSelection(3); // Default 1/4
-    mainSizer->Add(snapChoice, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
     
-    mainSizer->AddSpacer(10);
+    dropdownGrid->Add(lblSnap, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
+    dropdownGrid->Add(snapChoice, 0, wxALIGN_CENTER_VERTICAL);
     
-    // Default Bank Selector
-    wxStaticText* lblBank = new wxStaticText(this, wxID_ANY, "Bank:");
-    mainSizer->Add(lblBank, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
-    
-    wxArrayString bankChoices;
-    bankChoices.Add("None");
-    bankChoices.Add("Normal");
-    bankChoices.Add("Soft");
-    bankChoices.Add("Drum");
-    
-    defaultBankChoice = new wxChoice(this, 3002, wxDefaultPosition, wxSize(70, 30), bankChoices);
-    defaultBankChoice->SetSelection(0); // Default: None
-    defaultBankChoice->SetToolTip("Auto-place HitNormal when placing additions");
-    mainSizer->Add(defaultBankChoice, 0, wxALL | wxALIGN_CENTER_VERTICAL, 2);
-    
-    // Time Display
-    lblTime = new wxStaticText(this, wxID_ANY, "00:00:000");
-    wxFont font = lblTime->GetFont();
-    font.SetPointSize(14);
-    font.SetWeight(wxFONTWEIGHT_BOLD);
-    lblTime->SetFont(font);
-    
-    mainSizer->Add(lblTime, 0, wxALL | wxALIGN_CENTER_VERTICAL, 5);
+    mainSizer->Add(dropdownGrid, 0, wxALIGN_CENTER_VERTICAL);
     
     mainSizer->AddStretchSpacer(1);
     
-    // Metadata Panel
-    lblZoom = new wxStaticText(this, wxID_ANY, "Zoom: 100%");
+    // === ZOOM - Bottom right corner ===
+    // Wrap in a vertical sizer to push to bottom
+    wxBoxSizer* zoomSizer = new wxBoxSizer(wxVERTICAL);
+    zoomSizer->AddStretchSpacer(1);
     
-    wxBoxSizer* metaSizer = new wxBoxSizer(wxVERTICAL);
-    metaSizer->Add(lblZoom, 0, wxALIGN_RIGHT, 2);
+    lblZoom = new wxStaticText(this, wxID_ANY, "100%");
+    lblZoom->SetForegroundColour(wxColour(128, 128, 128)); // Gray
+    zoomSizer->Add(lblZoom, 0, wxALIGN_RIGHT);
     
-    mainSizer->Add(metaSizer, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
+    mainSizer->Add(zoomSizer, 0, wxEXPAND | wxALL, 6);
     
     SetSizer(mainSizer);
 }
+
 
 
 
@@ -168,7 +182,7 @@ void TransportPanel::SetZoomLevel(double pixelsPerSecond)
 {
     // 100 pixels/second is baseline (100%)
     int zoomPercent = static_cast<int>((pixelsPerSecond / 100.0) * 100.0);
-    lblZoom->SetLabel(wxString::Format("Zoom: %d%%", zoomPercent));
+    lblZoom->SetLabel(wxString::Format("%d%%", zoomPercent));
 }
 
 void TransportPanel::OnPlay(wxCommandEvent& evt)
