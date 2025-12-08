@@ -160,7 +160,7 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
 
     for (Track* track : visibleTracks)
     {
-        bool isChild = (track->name.find("%)") != std::string::npos);
+        bool isChild = track->isChildTrack;
         int currentHeight = isChild ? 40 : 80;
         bool isParentExpanded = !track->children.empty() && track->isExpanded;
 
@@ -188,7 +188,7 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
         dc.SetPen(wxPen(wxColour(60, 60, 60)));
         for (Track* track : visibleTracks)
         {
-             bool isChild = (track->name.find("%)") != std::string::npos);
+             bool isChild = track->isChildTrack;
              int h = isChild ? 40 : 80;
              
              // Draw Bottom Line
@@ -284,7 +284,7 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
     y = headerHeight; // Reset Y
     for (Track* track : visibleTracks)
     {
-        bool isChild = (track->name.find("%)") != std::string::npos);
+        bool isChild = track->isChildTrack;
         int currentHeight = isChild ? 40 : 80;
         bool isParentExpanded = !track->children.empty() && track->isExpanded;
         
@@ -396,7 +396,7 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
         
         for (Track* t : visible)
         {
-            bool isChild = (t->name.find("%)") != std::string::npos);
+            bool isChild = t->isChildTrack;
             int currentHeight = isChild ? 40 : 80;
             
             // Draw ghosts targetting this track (or its children if collapsed)
@@ -955,7 +955,7 @@ Track* TimelineView::GetTrackAtY(int y)
     int currentY = headerHeight;
     for (Track* t : visibleFn)
     {
-        bool isChild = (t->name.find("%)") != std::string::npos);
+        bool isChild = t->isChildTrack;
         int h = isChild ? 40 : 80;
         
         if (y >= currentY && y < currentY + h)
@@ -1021,7 +1021,7 @@ void TimelineView::PerformMarqueeSelect(const wxRect& rect)
     
     for (Track* t : visible)
     {
-        bool isChild = (t->name.find("%)") != std::string::npos);
+        bool isChild = t->isChildTrack;
         int currentHeight = isChild ? 40 : 80;
         
         // Culling optimization
@@ -1366,8 +1366,8 @@ void TimelineView::OnMouseWheel(wxMouseEvent& evt)
         pixelsPerSecond *= zoomFactor;
         
         // Clamp Zoom
-        if (pixelsPerSecond < 10.0) pixelsPerSecond = 10.0;
-        if (pixelsPerSecond > 5000.0) pixelsPerSecond = 5000.0;
+        if (pixelsPerSecond < ZoomSettings::MinPixelsPerSecond) pixelsPerSecond = ZoomSettings::MinPixelsPerSecond;
+        if (pixelsPerSecond > ZoomSettings::MaxPixelsPerSecond) pixelsPerSecond = ZoomSettings::MaxPixelsPerSecond;
         
         UpdateVirtualSize();
         
@@ -1444,7 +1444,7 @@ void TimelineView::UpdateVirtualSize()
     int h = headerHeight;
     std::vector<Track*> visible = GetVisibleTracks();
     for(Track* t : visible) {
-        bool isChild = (t->name.find("%)") != std::string::npos); // Hacky check from before
+        bool isChild = t->isChildTrack; // Using proper flag instead of hacky string check
         h += isChild ? 40 : 80;
     }
     h += 400; // Bottom Padding
@@ -1517,6 +1517,9 @@ void TimelineView::ValidateHitsounds()
             }
         }
     }
+    
+    // Notify audio engine to update its snapshot
+    if (OnTracksModified) OnTracksModified();
 }
 
 Track* TimelineView::FindOrCreateHitnormalTrack(SampleSet bank, double volume)
@@ -1558,6 +1561,7 @@ Track* TimelineView::FindOrCreateHitnormalTrack(SampleSet bank, double volume)
             newChild.sampleSet = bank;
             newChild.sampleType = SampleType::HitNormal;
             newChild.gain = volume;
+            newChild.isChildTrack = true;
             
             track.children.push_back(newChild);
             track.isExpanded = true;
@@ -1586,6 +1590,7 @@ Track* TimelineView::FindOrCreateHitnormalTrack(SampleSet bank, double volume)
     newChild.sampleSet = bank;
     newChild.sampleType = SampleType::HitNormal;
     newChild.gain = volume;
+    newChild.isChildTrack = true;
     
     newParent.children.push_back(newChild);
     

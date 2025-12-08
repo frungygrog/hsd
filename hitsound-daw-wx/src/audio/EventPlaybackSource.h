@@ -15,19 +15,36 @@ public:
     void releaseResources() override;
     void getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill) override;
 
+    // Call from UI thread to provide a pointer to the live tracks (for legacy compatibility)
     void setTracks (std::vector<Track>* tracks);
+    
+    // Call from UI thread to safely update the audio thread's snapshot
+    // This should be called after any track modifications (add/remove events, etc.)
+    void updateTracksSnapshot();
+    
     void setTransportSource (juce::AudioTransportSource* transport);
     void setOffset(double offset);
 
 private:
     SampleRegistry& sampleRegistry;
-    std::vector<Track>* tracks { nullptr };
+    
+    // UI thread's live tracks pointer (used as source for snapshots)
+    std::vector<Track>* uiTracks { nullptr };
+    
+    // Thread-safe snapshot that audio thread reads from
+    std::vector<Track> tracksSnapshot;
+    juce::SpinLock tracksLock;
+    
     juce::AudioTransportSource* transportSource { nullptr };
 
     double currentSampleRate { 44100.0 };
     double offsetSeconds { 0.0 };
+    float masterGain { 0.6f }; // Default 60% for effects
     
-    juce::MixerAudioSource mixer; // Unused but kept for potential sub-mixes
+public:
+    void setMasterGain(float gain) { masterGain = gain; }
+    
+private:
     
     struct Voice
     {

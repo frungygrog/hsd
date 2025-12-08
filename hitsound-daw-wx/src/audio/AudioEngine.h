@@ -40,6 +40,10 @@ public:
     void hiResTimerCallback() override;
 
     void SetTracks(std::vector<Track>* tracks);
+    
+    // Call after modifying tracks to sync audio thread's snapshot
+    void NotifyTracksChanged();
+    
     void SetLooping(bool looping);
     void SetLoopPoints(double start, double end);
     
@@ -48,6 +52,10 @@ public:
     // Master Track
     void LoadMasterTrack(const std::string& path);
     std::vector<float> GetWaveform(int numSamples);
+    
+    // Volume Control
+    void SetMasterVolume(float volume);  // Song volume (0.0-1.0)
+    void SetEffectsVolume(float volume); // Effects volume (0.0-1.0)
     
 private:
     juce::AudioDeviceManager deviceManager;

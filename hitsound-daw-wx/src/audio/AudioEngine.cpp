@@ -74,6 +74,11 @@ void AudioEngine::SetTracks(std::vector<Track>* tracks)
     eventPlaybackSource.setTracks(tracks);
 }
 
+void AudioEngine::NotifyTracksChanged()
+{
+    eventPlaybackSource.updateTracksSnapshot();
+}
+
 void AudioEngine::SetLooping(bool shouldLoop)
 {
     looping = shouldLoop;
@@ -177,4 +182,14 @@ void AudioEngine::hiResTimerCallback()
             masterTransport.setPosition(loopStart - masterOffset);
         }
     }
+}
+
+void AudioEngine::SetMasterVolume(float volume)
+{
+    masterTransport.setGain(volume);
+}
+
+void AudioEngine::SetEffectsVolume(float volume)
+{
+    eventPlaybackSource.setMasterGain(volume);
 }

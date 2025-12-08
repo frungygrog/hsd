@@ -237,6 +237,7 @@ Project OsuParser::parse(const juce::File& file)
             // If we group by volume, we can optimization: set Track Gain = vol/100, Event Volume = 1.
             // But let's keep Event Volume as is from parsing to be safe.
             
+            child.isChildTrack = true;
             parent.children.push_back(child);
         }
         

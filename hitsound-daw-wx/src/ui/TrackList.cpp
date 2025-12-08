@@ -77,7 +77,7 @@ int TrackList::GetTotalContentHeight() const
     int height = 130; // Header (30 Ruler + 100 Master)
     
     std::function<void(const Track&)> calcHeight = [&](const Track& t) {
-        height += (t.name.find("%)") != std::string::npos) ? 40 : 80;
+        height += t.isChildTrack ? 40 : 80;
         if (t.isExpanded && !t.children.empty()) {
             for (const auto& c : t.children) calcHeight(c);
         }
@@ -107,7 +107,7 @@ std::vector<Track*> TrackList::GetVisibleTracks()
 
 int TrackList::GetTrackHeight(const Track& track)
 {
-    if (track.name.find("%)") != std::string::npos) return 40;
+    if (track.isChildTrack) return 40;
     return 80;
 }
 
@@ -605,7 +605,7 @@ void TrackList::OnPaint(wxPaintEvent& evt)
                      targetY = curY;
                      break;
                  }
-                 int h = (t.name.find("%)") != std::string::npos) ? 40 : 80;
+                 int h = t.isChildTrack ? 40 : 80;
                  curY += h;
                  if (t.isExpanded) {
                      for (auto& c : t.children) curY += 40; // Children are 40
@@ -618,7 +618,7 @@ void TrackList::OnPaint(wxPaintEvent& evt)
         {
              // Child level
              for (auto& t : project->tracks) {
-                 int h = (t.name.find("%)") != std::string::npos) ? 40 : 80;
+                 int h = t.isChildTrack ? 40 : 80;
                  if (&t == currentDropTarget.parent)
                  {
                      curY += h; // Skip parent itself
@@ -675,7 +675,7 @@ void TrackList::OnContextMenu(wxContextMenuEvent& evt)
     
     for (auto& t : project->tracks)
     {
-        int h = (t.name.find("%)") != std::string::npos) ? 40 : 80;
+        int h = t.isChildTrack ? 40 : 80;
         
         if (y >= curY && y < curY + h)
         {
@@ -785,6 +785,7 @@ found:
                  child.layers.push_back({targetSet, targetType});
              }
              
+             child.isChildTrack = true;
              foundTrack->children.push_back(child);
              foundTrack->isExpanded = true;
          }
@@ -801,6 +802,7 @@ found:
              
              child.name = sStr + "-" + tStr + " (50%)";
              
+             child.isChildTrack = true;
              foundTrack->children.push_back(child);
              foundTrack->isExpanded = true;
          }
@@ -890,6 +892,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                                  child.sampleSet = res.bank;
                                  child.sampleType = res.type;
                                  child.gain = (float)vol / 100.0f;
+                                 child.isChildTrack = true;
                                  parent->children.push_back(child);
                              }
                              
@@ -935,6 +938,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                              
                              child.sampleSet = res.hitNormalBank;
                              child.sampleType = SampleType::HitNormal;
+                             child.isChildTrack = true;
                              
                              grouping.children.push_back(child);
                              
@@ -1163,11 +1167,8 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
         {
             // Only show context menu for Parents (Grouping or Folder)
             // Identify if hit is a child
-            bool isChild = (hit->name.find("%)") != std::string::npos); // Robust check? 
-            // Better: Check if it's in project->tracks directly?
-            // "hit" pointer is stable?
-            // Let's use the scan function's "indent" if we can access it.
-            // But we already found "hit".
+            bool isChild = hit->isChildTrack; // Using proper flag now
+            // Re-verify if it's a root track for fallback validation
             
             // Re-verify if it's a root track
             bool isRoot = false;
@@ -1321,6 +1322,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                             child.layers.push_back({targetSet, targetType});
                         }
                         
+                        child.isChildTrack = true;
                         hit->children.push_back(child);
                         hit->isExpanded = true;
                     }
@@ -1338,6 +1340,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                         
                         child.name = sStr + "-" + tStr + " (50%)";
                         
+                        child.isChildTrack = true;
                         hit->children.push_back(child);
                         hit->isExpanded = true;
                     }
@@ -1454,8 +1457,8 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                 
                 // Determine Drop Target
                 int curY = 130; 
-                bool isSourceChild = (!dragSourceTrack->children.empty() == false && dragSourceTrack->name.find("%)") != std::string::npos); // Heuristic or check project
-                // Better check: is it in a children vector?
+                bool isSourceChild = dragSourceTrack->isChildTrack; // Using proper flag now
+                // Logic: Find source in structure
                 // Logic: Find source in structure
                 
                 Track* sourceParent = nullptr;
@@ -1483,7 +1486,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                      int pY = 130;
                      for (auto& t : project->tracks) {
                          if (&t == sourceParent) break;
-                         pY += (t.name.find("%)") != std::string::npos ? 40 : 80); // Should be 80 for parent
+                         pY += t.isChildTrack ? 40 : 80; // Using proper flag now
                          if (t.isExpanded) pY += t.children.size() * 40;
                      }
                      

@@ -7,6 +7,7 @@
 #include <map>
 #include <algorithm>
 #include "../model/Command.h"
+#include "../Constants.h"
 
 enum class ToolType
 {
@@ -24,6 +25,9 @@ public:
     
     // Callback for zoom changes
     std::function<void(double pixelsPerSecond)> OnZoomChanged;
+    
+    // Callback when tracks are modified (events added/removed/moved) - for audio thread sync
+    std::function<void()> OnTracksModified;
     
     void SetProject(Project* p);
     void SetTool(ToolType tool) { currentTool = tool; }
@@ -63,17 +67,17 @@ private:
     Track* lastFocusedTrack = nullptr;
     
     // Grid & Zoom
-    double pixelsPerSecond = 100.0;
+    double pixelsPerSecond = ZoomSettings::DefaultPixelsPerSecond;
     int gridDivisor = 4;
     
     // Default bank for auto-hitnormal (nullopt = disabled)
     std::optional<SampleSet> defaultHitnormalBank;
     
-    int trackHeight = 100;
+    int trackHeight = TrackLayout::MasterTrackHeight;
     
-    const int rulerHeight = 30;
-    const int masterTrackHeight = 100;
-    const int headerHeight = 130; // ruler + master
+    const int rulerHeight = TrackLayout::RulerHeight;
+    const int masterTrackHeight = TrackLayout::MasterTrackHeight;
+    const int headerHeight = TrackLayout::HeaderHeight; // ruler + master
     
     double playheadPosition = 0.0;
     bool isDraggingPlayhead = false;

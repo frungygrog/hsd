@@ -17,18 +17,19 @@ EventPlaybackSource::~EventPlaybackSource()
 void EventPlaybackSource::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
 {
     currentSampleRate = sampleRate;
-    mixer.prepareToPlay (samplesPerBlockExpected, sampleRate);
 }
 
 void EventPlaybackSource::releaseResources()
 {
-    mixer.releaseResources();
     activeVoices.clear();
 }
 
 void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill)
 {
-    if (tracks == nullptr || transportSource == nullptr)
+    // Take a lock to safely read the tracks snapshot
+    const juce::SpinLock::ScopedLockType lock (tracksLock);
+    
+    if (tracksSnapshot.empty() || transportSource == nullptr)
     {
         bufferToFill.clearActiveBufferRegion();
         return;
@@ -122,9 +123,8 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
         }
     };
 
-    for (const auto& track : *tracks)
+    for (const auto& track : tracksSnapshot)
     {
-        // if (track.isMaster) continue; // Track.h doesn't have isMaster?
         processTrack (track);
     }
     
@@ -153,7 +153,7 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
             
             if (voice.reader->read (&tempBuffer, 0, count, voice.position, true, true))
             {
-                tempBuffer.applyGain (voice.gain);
+                tempBuffer.applyGain(voice.gain * masterGain);
                 
                 for (int ch = 0; ch < bufferToFill.buffer->getNumChannels(); ++ch)
                 {
@@ -181,10 +181,26 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
 
 void EventPlaybackSource::setTracks (std::vector<Track>* t)
 {
-    tracks = t;
+    uiTracks = t;
+    
+    // Create initial snapshot
+    if (uiTracks != nullptr)
+    {
+        const juce::SpinLock::ScopedLockType lock (tracksLock);
+        tracksSnapshot = *uiTracks;
+    }
+}
+
+void EventPlaybackSource::updateTracksSnapshot()
+{
+    if (uiTracks == nullptr) return;
+    
+    const juce::SpinLock::ScopedLockType lock (tracksLock);
+    tracksSnapshot = *uiTracks;
 }
 
 void EventPlaybackSource::setTransportSource (juce::AudioTransportSource* transport)
 {
     transportSource = transport;
 }
+

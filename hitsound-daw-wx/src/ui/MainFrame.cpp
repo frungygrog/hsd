@@ -122,6 +122,11 @@ MainFrame::MainFrame()
     timelineView->OnZoomChanged = [this](double pixelsPerSecond) {
         transportPanel->SetZoomLevel(pixelsPerSecond);
     };
+    
+    // Tracks Modified Callback - sync audio thread snapshot
+    timelineView->OnTracksModified = [this]() {
+        audioEngine.NotifyTracksChanged();
+    };
 
     playbackTimer.Start(30); // 30ms interval (~30fps)
 }
@@ -223,7 +228,7 @@ void MainFrame::OnOpen(wxCommandEvent& evt)
     // Let's iterate simply
     int calculatedHeight = 130; // Header (30 Ruler + 100 Master)
     std::function<void(Track&)> calcH = [&](Track& t) {
-        calculatedHeight += (t.name.find("%)") != std::string::npos) ? 40 : 80;
+        calculatedHeight += t.isChildTrack ? 40 : 80;
         if (t.isExpanded && !t.children.empty()) {
             for (auto& c : t.children) calcH(c);
         }
@@ -322,7 +327,7 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
     // Recalculate Height
     int calculatedHeight = 130; 
     std::function<void(Track&)> calcH = [&](Track& t) {
-        calculatedHeight += (t.name.find("%)") != std::string::npos) ? 40 : 80;
+        calculatedHeight += t.isChildTrack ? 40 : 80;
         if (t.isExpanded && !t.children.empty()) {
             for (auto& c : t.children) calcH(c);
         }
@@ -394,6 +399,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
             child.sampleSet = bank;
             child.sampleType = type;
             child.gain = 0.6;
+            child.isChildTrack = true;
             
             parent.children.push_back(child);
             return parent;
@@ -418,7 +424,10 @@ void MainFrame::ApplyPreset(const std::string& presetName)
         // Child with layers
         Track snareChild;
         snareChild.name = "Snare (60%)";
+        snareChild.sampleSet = SampleSet::Soft;
+        snareChild.sampleType = SampleType::HitNormal;
         snareChild.gain = 0.6;
+        snareChild.isChildTrack = true;
         snareChild.layers.push_back({SampleSet::Soft, SampleType::HitNormal});
         snareChild.layers.push_back({SampleSet::Soft, SampleType::HitClap});
         

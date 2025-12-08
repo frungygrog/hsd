@@ -60,6 +60,10 @@ struct Track
     
     // Grouping flag (Composite track)
     bool isGrouping = false;
+    
+    // Child track flag - set to true for tracks nested inside parent containers
+    // This replaces fragile string-based detection (checking for "%" in name)
+    bool isChildTrack = false;
 };
 
 

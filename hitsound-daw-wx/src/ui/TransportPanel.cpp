@@ -18,6 +18,8 @@ wxBEGIN_EVENT_TABLE(TransportPanel, wxPanel)
     // EVT_TOGGLEBUTTON(2003, TransportPanel::OnToolErase) removed
     EVT_CHOICE(3001, TransportPanel::OnSnapChange)
     EVT_CHOICE(3002, TransportPanel::OnDefaultBankChange)
+    EVT_SLIDER(4001, TransportPanel::OnSongVolumeChange)
+    EVT_SLIDER(4002, TransportPanel::OnEffectsVolumeChange)
 wxEND_EVENT_TABLE()
 
 TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineView* timeline)
@@ -129,6 +131,27 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     mainSizer->Add(dropdownGrid, 0, wxALIGN_CENTER_VERTICAL);
     
     mainSizer->AddStretchSpacer(1);
+    
+    // === VOLUME SLIDERS - Right side, stacked vertically ===
+    wxFlexGridSizer* volumeGrid = new wxFlexGridSizer(2, 2, 2, 5); // 2 rows, 2 cols, 2px vgap, 5px hgap
+    
+    // Song Volume Row
+    wxStaticText* lblSong = new wxStaticText(this, wxID_ANY, "Song");
+    lblSong->SetForegroundColour(wxColour(180, 180, 180));
+    songVolumeSlider = new wxSlider(this, 4001, 100, 0, 100, wxDefaultPosition, wxSize(80, -1), wxSL_HORIZONTAL);
+    songVolumeSlider->SetToolTip("Song Volume");
+    volumeGrid->Add(lblSong, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
+    volumeGrid->Add(songVolumeSlider, 0, wxALIGN_CENTER_VERTICAL);
+    
+    // Effects Volume Row
+    wxStaticText* lblEffects = new wxStaticText(this, wxID_ANY, "Effects");
+    lblEffects->SetForegroundColour(wxColour(180, 180, 180));
+    effectsVolumeSlider = new wxSlider(this, 4002, 60, 0, 100, wxDefaultPosition, wxSize(80, -1), wxSL_HORIZONTAL);
+    effectsVolumeSlider->SetToolTip("Effects Volume (Hitsounds)");
+    volumeGrid->Add(lblEffects, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
+    volumeGrid->Add(effectsVolumeSlider, 0, wxALIGN_CENTER_VERTICAL);
+    
+    mainSizer->Add(volumeGrid, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
     
     // === ZOOM - Bottom right corner ===
     // Wrap in a vertical sizer to push to bottom
@@ -312,4 +335,20 @@ void TransportPanel::Stop()
 {
     wxCommandEvent evt;
     OnStop(evt);
+}
+
+void TransportPanel::OnSongVolumeChange(wxCommandEvent& evt)
+{
+    if (!audioEngine) return;
+    
+    float volume = songVolumeSlider->GetValue() / 100.0f;
+    audioEngine->SetMasterVolume(volume);
+}
+
+void TransportPanel::OnEffectsVolumeChange(wxCommandEvent& evt)
+{
+    if (!audioEngine) return;
+    
+    float volume = effectsVolumeSlider->GetValue() / 100.0f;
+    audioEngine->SetEffectsVolume(volume);
 }

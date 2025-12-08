@@ -5,6 +5,7 @@
 #include <wx/choice.h>
 #include <wx/bmpbuttn.h>
 #include <wx/artprov.h>
+#include <wx/slider.h>
 
 class AudioEngine;
 class TimelineView;
@@ -34,6 +35,9 @@ private:
     void OnToolDraw(wxCommandEvent& evt);
     // OnToolErase removed
     
+    void OnSongVolumeChange(wxCommandEvent& evt);
+    void OnEffectsVolumeChange(wxCommandEvent& evt);
+    
     AudioEngine* audioEngine;
     TimelineView* timelineView;
     
@@ -51,6 +55,9 @@ private:
     wxChoice* snapChoice;
     wxChoice* defaultBankChoice;
     
+    // Volume sliders
+    wxSlider* songVolumeSlider;
+    wxSlider* effectsVolumeSlider;
 
     
     
