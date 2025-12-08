@@ -117,6 +117,11 @@ MainFrame::MainFrame()
     timelineView->OnLoopPointsChanged = [this](double start, double end) {
         audioEngine.SetLoopPoints(start, end);
     };
+    
+    // Zoom Callback
+    timelineView->OnZoomChanged = [this](double pixelsPerSecond) {
+        transportPanel->SetZoomLevel(pixelsPerSecond);
+    };
 
     playbackTimer.Start(30); // 30ms interval (~30fps)
 }
@@ -199,8 +204,6 @@ void MainFrame::OnOpen(wxCommandEvent& evt)
         auto peaks = audioEngine.GetWaveform(w); 
         double duration = audioEngine.GetDuration();
         timelineView->SetWaveform(peaks, duration);
-        
-        transportPanel->SetProjectDetails(project.bpm, project.offset);
     }
     
     // Total height
@@ -288,8 +291,6 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
         auto peaks = audioEngine.GetWaveform(4000);
         double duration = audioEngine.GetDuration();
         timelineView->SetWaveform(peaks, duration);
-        
-        transportPanel->SetProjectDetails(project.bpm, project.offset);
     }
 
     // Recalculate Height

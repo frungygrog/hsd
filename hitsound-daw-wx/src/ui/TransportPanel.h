@@ -16,7 +16,7 @@ public:
     TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineView* timeline);
     
     void UpdateTime(double time);
-    void SetProjectDetails(double bpm, double offset);
+    void SetZoomLevel(double pixelsPerSecond);
     void UpdatePlayButton();
     
     void TogglePlayback();
@@ -46,7 +46,6 @@ private:
     wxToggleButton* btnLoop;
     
     // Metadata
-    wxStaticText* lblBPM;
     wxStaticText* lblZoom;
     wxChoice* snapChoice;
     

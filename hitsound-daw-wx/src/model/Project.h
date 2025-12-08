@@ -23,6 +23,9 @@ struct Project
     std::string artist;
     std::string title;
     std::string version; // Difficulty name
+    std::string creator;  // Mapper name
+    
+    SampleSet defaultSampleSet = SampleSet::Normal; // From [General] SampleSet
     
     std::string audioFilename;
     std::string projectDirectory;

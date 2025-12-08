@@ -22,6 +22,9 @@ public:
     // Callback for loop changes
     std::function<void(double start, double end)> OnLoopPointsChanged;
     
+    // Callback for zoom changes
+    std::function<void(double pixelsPerSecond)> OnZoomChanged;
+    
     void SetProject(Project* p);
     void SetTool(ToolType tool) { currentTool = tool; }
     void SetPlayheadPosition(double time);

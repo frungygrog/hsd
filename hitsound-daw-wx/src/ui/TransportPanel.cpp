@@ -105,12 +105,10 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     mainSizer->AddStretchSpacer(1);
     
     // Metadata Panel
-    lblBPM = new wxStaticText(this, wxID_ANY, "BPM: --- | Offset: 0ms");
     lblZoom = new wxStaticText(this, wxID_ANY, "Zoom: 100%");
     
     wxBoxSizer* metaSizer = new wxBoxSizer(wxVERTICAL);
-    metaSizer->Add(lblBPM, 0, wxALIGN_RIGHT | wxBOTTOM, 2);
-    metaSizer->Add(lblZoom, 0, wxALIGN_RIGHT | wxTOP, 2);
+    metaSizer->Add(lblZoom, 0, wxALIGN_RIGHT, 2);
     
     mainSizer->Add(metaSizer, 0, wxALL | wxALIGN_CENTER_VERTICAL, 10);
     
@@ -150,9 +148,11 @@ void TransportPanel::UpdateTime(double time)
     lblTime->SetLabel(wxString::Format("%02d:%02d:%03d", m, s, mill));
 }
 
-void TransportPanel::SetProjectDetails(double bpm, double offset)
+void TransportPanel::SetZoomLevel(double pixelsPerSecond)
 {
-    lblBPM->SetLabel(wxString::Format("BPM: %.1f | Offset: %.0fms", bpm, offset));
+    // 100 pixels/second is baseline (100%)
+    int zoomPercent = static_cast<int>((pixelsPerSecond / 100.0) * 100.0);
+    lblZoom->SetLabel(wxString::Format("Zoom: %d%%", zoomPercent));
 }
 
 void TransportPanel::OnPlay(wxCommandEvent& evt)

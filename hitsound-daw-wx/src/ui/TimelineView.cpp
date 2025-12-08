@@ -1286,6 +1286,9 @@ void TimelineView::OnMouseWheel(wxMouseEvent& evt)
         
         Scroll(newScrollPixel / ppuX, -1);
         Refresh();
+        
+        // Notify zoom change
+        if (OnZoomChanged) OnZoomChanged(pixelsPerSecond);
     }
     else if (evt.ShiftDown())
     {

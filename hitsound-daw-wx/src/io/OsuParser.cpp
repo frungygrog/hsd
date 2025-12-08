@@ -56,6 +56,24 @@ Project OsuParser::parse(const juce::File& file)
             {
                 project.audioFilename = t.substring(14).trim().toStdString();
             }
+            else if (t.startsWith("SampleSet:"))
+            {
+                auto val = t.substring(10).trim().toLowerCase();
+                if (val == "soft") project.defaultSampleSet = SampleSet::Soft;
+                else if (val == "drum") project.defaultSampleSet = SampleSet::Drum;
+                else project.defaultSampleSet = SampleSet::Normal;
+            }
+        }
+        else if (currentSection == "Metadata")
+        {
+            if (t.startsWith("Title:"))
+                project.title = t.substring(6).trim().toStdString();
+            else if (t.startsWith("Artist:"))
+                project.artist = t.substring(7).trim().toStdString();
+            else if (t.startsWith("Creator:"))
+                project.creator = t.substring(8).trim().toStdString();
+            else if (t.startsWith("Version:"))
+                project.version = t.substring(8).trim().toStdString();
         }
         else if (currentSection == "TimingPoints")
         {
@@ -143,12 +161,15 @@ Project OsuParser::parse(const juce::File& file)
                 auto [inheritedSet, inheritedVol] = getStateAt(time);
                 if (volume == 0) volume = (int)inheritedVol;
                 
-                // Resolution Logic
+                // Resolution Logic - uses defaultSampleSet as ultimate fallback
                 auto resolve = [&](int val) {
                     if (val == 0) { 
+                        // Use inherited timing point set, or fall back to project default
                         if (inheritedSet == 2) return SampleSet::Soft;
                         if (inheritedSet == 3) return SampleSet::Drum;
-                        return SampleSet::Normal;
+                        if (inheritedSet == 1) return SampleSet::Normal;
+                        // inheritedSet == 0 means "auto" - use the project default
+                        return project.defaultSampleSet;
                     }
                     if (val == 2) return SampleSet::Soft;
                     if (val == 3) return SampleSet::Drum;

@@ -183,11 +183,61 @@ void TrackList::OnPaint(wxPaintEvent& evt)
     wxRect masterRect(0, masterY, width, masterTrackHeight);
     
     dc.SetPen(wxPen(borderCol));
-    dc.SetBrush(wxBrush(wxColour(30, 30, 35)));
+    // Distinct Master Color
+    dc.SetBrush(wxBrush(wxColour(45, 45, 60)));
     dc.DrawRectangle(masterRect);
     
     dc.SetTextForeground(*wxWHITE);
-    dc.DrawText("Master Audio", 10, masterY + 40);
+    wxFont masterTitleFont = dc.GetFont();
+    masterTitleFont.SetWeight(wxFONTWEIGHT_BOLD);
+    masterTitleFont.SetPointSize(11);
+    dc.SetFont(masterTitleFont);
+    
+    // Display "Artist - Title" with truncation if too long
+    wxString masterTitle = "Master Audio";
+    if (project && (!project->artist.empty() || !project->title.empty()))
+    {
+        masterTitle = wxString::FromUTF8(project->artist) + " - " + wxString::FromUTF8(project->title);
+    }
+    
+    // Truncate with ellipsis if text is too long (leave room for offset display)
+    int maxTitleWidth = width - 30; // 10px margin on each side, plus some buffer
+    wxSize titleSize = dc.GetTextExtent(masterTitle);
+    if (titleSize.GetWidth() > maxTitleWidth)
+    {
+        // Binary search for truncation point
+        while (masterTitle.Length() > 3 && dc.GetTextExtent(masterTitle + "...").GetWidth() > maxTitleWidth)
+        {
+            masterTitle = masterTitle.Left(masterTitle.Length() - 1);
+        }
+        masterTitle += "...";
+    }
+    
+    dc.DrawText(masterTitle, 10, masterY + 15);
+    
+    // Show offset from first timing point
+    wxFont infoFont = dc.GetFont();
+    infoFont.SetWeight(wxFONTWEIGHT_NORMAL);
+    infoFont.SetPointSize(9);
+    dc.SetFont(infoFont);
+    dc.SetTextForeground(wxColour(200, 200, 200));
+    
+    double firstOffset = 0.0;
+    if (project && !project->timingPoints.empty())
+    {
+        // Find first uninherited timing point
+        for (const auto& tp : project->timingPoints)
+        {
+            if (tp.uninherited)
+            {
+                firstOffset = tp.time;
+                break;
+            }
+        }
+    }
+    
+    wxString offsetStr = wxString::Format("Offset: %.0f ms", firstOffset);
+    dc.DrawText(offsetStr, 10, masterY + 45);
     
     y += headerHeight;
     
@@ -852,12 +902,100 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
              
              if (hit)
              {
+                 // Begin Drag
                  dragSourceTrack = hit;
-                 dragSourceY = clickY; 
-                 // Don't set isDraggingTrack yet, wait for threshold
+                 isDraggingTrack = true;
+                 CaptureMouse();
              }
         }
+    }
+    else if (evt.RightDown())
+    {
+        if (!project) return;
+        
+        int clickX = evt.GetX();
+        int clickY = evt.GetY() + scrollOffsetY;
+        
+        // Find Track
+        std::function<Track*(Track&, int, int&)> findTrack = [&](Track& tr, int indent, int& curY) -> Track* {
+             int h = (indent==0 ? 80 : 40);
+             if (clickY >= curY && clickY < curY + h) return &tr;
+             curY += h;
+             if (tr.isExpanded) {
+                 for (auto& c : tr.children) {
+                     Track* res = findTrack(c, indent+1, curY);
+                     if (res) return res;
+                 }
+             }
+             return nullptr;
+        };
+        
+        int trackScanY = 130;
+        Track* hit = nullptr;
+        for (auto& t : project->tracks) {
+            hit = findTrack(t, 0, trackScanY);
+            if (hit) break;
+        }
+        
+        if (hit)
+        {
+            // Show Context Menu
+            wxMenu menu;
+            menu.Append(20001, "Add Child");
             
+            // Should we allow adding child to a child? No, 2 levels max currently implied.
+            // But we can check indent or just let it happen? 
+            // The hit test logic tracks indent.
+            // Let's assume hitting a top-level parent (Group or Folder).
+            
+            int sel = GetPopupMenuSelectionFromUser(menu);
+            if (sel == 20001)
+            {
+                AddTrackDialog dlg(this);
+                if (dlg.ShowModal() == wxID_OK)
+                {
+                    AddTrackResult res = dlg.GetResult();
+                    if (res.confirmed)
+                    {
+                        if (hit->isGrouping)
+                        {
+                            // Add Layer to Composite Child
+                            if (!hit->children.empty())
+                            {
+                                hit->children[0].layers.push_back({res.bank, res.type});
+                            }
+                            else
+                            {
+                                // Should not happen for a valid Grouping, but safety create one?
+                                Track child;
+                                child.name = hit->name;
+                                child.gain = 1.0; // Default
+                                child.layers.push_back({res.bank, res.type});
+                                hit->children.push_back(child);
+                            }
+                        }
+                        else
+                        {
+                            // Standard Parent -> Add Child Track
+                            Track child;
+                            
+                            std::string sStr = (res.bank==SampleSet::Normal)?"normal":(res.bank==SampleSet::Soft?"soft":"drum");
+                            std::string tStr = (res.type==SampleType::HitNormal)?"hitnormal":(res.type==SampleType::HitWhistle?"hitwhistle":(res.type==SampleType::HitFinish?"hitfinish":"hitclap"));
+                            
+                            child.name = sStr + "-" + tStr;
+                            child.sampleSet = res.bank;
+                            child.sampleType = res.type;
+                            child.gain = (float)res.volume / 100.0f;
+                            
+                            hit->children.push_back(child);
+                            hit->isExpanded = true;
+                        }
+                        Refresh();
+                        if (GetParent()) GetParent()->Refresh();
+                    }
+                }
+            }
+        }
     }
     else if (evt.Dragging())
     {
