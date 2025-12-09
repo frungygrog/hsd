@@ -15,7 +15,7 @@ wxBEGIN_EVENT_TABLE(TransportPanel, wxPanel)
     EVT_TOGGLEBUTTON(1003, TransportPanel::OnLoop)
     EVT_TOGGLEBUTTON(2001, TransportPanel::OnToolSelect)
     EVT_TOGGLEBUTTON(2002, TransportPanel::OnToolDraw)
-    // EVT_TOGGLEBUTTON(2003, TransportPanel::OnToolErase) removed
+    
     EVT_CHOICE(3001, TransportPanel::OnSnapChange)
     EVT_CHOICE(3002, TransportPanel::OnDefaultBankChange)
     EVT_SLIDER(4001, TransportPanel::OnSongVolumeChange)
@@ -25,18 +25,18 @@ wxEND_EVENT_TABLE()
 TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineView* timeline)
     : wxPanel(parent, wxID_ANY), audioEngine(engine), timelineView(timeline)
 {
-    // Main horizontal sizer for the entire panel
+    
     wxBoxSizer* mainSizer = new wxBoxSizer(wxHORIZONTAL);
     
-    // Define Colors
-    wxColor colPlay(0, 180, 0);  // Green
-    wxColor colStop(180, 0, 0);  // Red
+    
+    wxColor colPlay(0, 180, 0);  
+    wxColor colStop(180, 0, 0);  
     wxColor colBlack(*wxBLACK);
 
-    // === LEFT COLUMN: Transport buttons (top) + Tools (bottom) ===
+    
     wxBoxSizer* leftColumnSizer = new wxBoxSizer(wxVERTICAL);
     
-    // Transport buttons row
+    
     wxBoxSizer* transportRowSizer = new wxBoxSizer(wxHORIZONTAL);
     
     btnPlay = new wxBitmapButton(this, 1001, wxBitmap(), wxDefaultPosition, wxSize(40, 40));
@@ -57,7 +57,7 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     
     leftColumnSizer->Add(transportRowSizer, 0, wxBOTTOM, 2);
     
-    // Tools row - directly below transport with minimal gap
+    
     wxBoxSizer* toolsRowSizer = new wxBoxSizer(wxHORIZONTAL);
     
     wxStaticText* lblTools = new wxStaticText(this, wxID_ANY, "Tools:");
@@ -82,7 +82,7 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     
     mainSizer->AddSpacer(10);
     
-    // === TIME DISPLAY - Vertically centered ===
+    
     lblTime = new wxStaticText(this, wxID_ANY, "00:00:000");
     wxFont timeFont = lblTime->GetFont();
     timeFont.SetPointSize(14);
@@ -90,14 +90,14 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     lblTime->SetFont(timeFont);
     mainSizer->Add(lblTime, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
     
-    // === VERTICAL DIVIDER after time ===
+    
     wxStaticLine* divider = new wxStaticLine(this, wxID_ANY, wxDefaultPosition, wxSize(1, 55), wxLI_VERTICAL);
     mainSizer->Add(divider, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT | wxLEFT, 10);
     
-    // === Bank/Snap Dropdowns - Stacked Vertically, centered ===
-    wxFlexGridSizer* dropdownGrid = new wxFlexGridSizer(2, 2, 2, 5); // 2 rows, 2 cols, 2px vgap, 5px hgap
     
-    // Bank Row
+    wxFlexGridSizer* dropdownGrid = new wxFlexGridSizer(2, 2, 2, 5); 
+    
+    
     wxStaticText* lblBank = new wxStaticText(this, wxID_ANY, "Bank:");
     wxArrayString bankChoices;
     bankChoices.Add("None");
@@ -111,7 +111,7 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     dropdownGrid->Add(lblBank, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
     dropdownGrid->Add(defaultBankChoice, 0, wxALIGN_CENTER_VERTICAL);
     
-    // Snap Row
+    
     wxStaticText* lblSnap = new wxStaticText(this, wxID_ANY, "Snap:");
     wxArrayString choices;
     choices.Add("1/1");
@@ -123,7 +123,7 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     choices.Add("1/12");
     choices.Add("1/16");
     snapChoice = new wxChoice(this, 3001, wxDefaultPosition, wxSize(70, -1), choices);
-    snapChoice->SetSelection(3); // Default 1/4
+    snapChoice->SetSelection(3); 
     
     dropdownGrid->Add(lblSnap, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
     dropdownGrid->Add(snapChoice, 0, wxALIGN_CENTER_VERTICAL);
@@ -132,10 +132,10 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     
     mainSizer->AddStretchSpacer(1);
     
-    // === VOLUME SLIDERS - Right side, stacked vertically ===
-    wxFlexGridSizer* volumeGrid = new wxFlexGridSizer(2, 2, 2, 5); // 2 rows, 2 cols, 2px vgap, 5px hgap
     
-    // Song Volume Row
+    wxFlexGridSizer* volumeGrid = new wxFlexGridSizer(2, 2, 2, 5); 
+    
+    
     wxStaticText* lblSong = new wxStaticText(this, wxID_ANY, "Song");
     lblSong->SetForegroundColour(wxColour(180, 180, 180));
     songVolumeSlider = new wxSlider(this, 4001, 100, 0, 100, wxDefaultPosition, wxSize(80, -1), wxSL_HORIZONTAL);
@@ -143,7 +143,7 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     volumeGrid->Add(lblSong, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
     volumeGrid->Add(songVolumeSlider, 0, wxALIGN_CENTER_VERTICAL);
     
-    // Effects Volume Row
+    
     wxStaticText* lblEffects = new wxStaticText(this, wxID_ANY, "Effects");
     lblEffects->SetForegroundColour(wxColour(180, 180, 180));
     effectsVolumeSlider = new wxSlider(this, 4002, 60, 0, 100, wxDefaultPosition, wxSize(80, -1), wxSL_HORIZONTAL);
@@ -153,13 +153,13 @@ TransportPanel::TransportPanel(wxWindow* parent, AudioEngine* engine, TimelineVi
     
     mainSizer->Add(volumeGrid, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
     
-    // === ZOOM - Bottom right corner ===
-    // Wrap in a vertical sizer to push to bottom
+    
+    
     wxBoxSizer* zoomSizer = new wxBoxSizer(wxVERTICAL);
     zoomSizer->AddStretchSpacer(1);
     
     lblZoom = new wxStaticText(this, wxID_ANY, "100%");
-    lblZoom->SetForegroundColour(wxColour(128, 128, 128)); // Gray
+    lblZoom->SetForegroundColour(wxColour(128, 128, 128)); 
     zoomSizer->Add(lblZoom, 0, wxALIGN_RIGHT);
     
     mainSizer->Add(zoomSizer, 0, wxEXPAND | wxALL, 6);
@@ -177,8 +177,8 @@ void TransportPanel::OnLoop(wxCommandEvent& evt)
         bool loop = btnLoop->GetValue();
         audioEngine->SetLooping(loop);
         
-        // Update Icon Color
-        // Update Icon Color
+        
+        
         btnLoop->SetBitmap(LoadIcon("loop.svg", loop ? wxColor(0, 180, 0) : *wxBLACK));
     }
 }
@@ -192,7 +192,7 @@ void TransportPanel::UpdatePlayButton()
 
 void TransportPanel::UpdateTime(double time)
 {
-    // Format: MM:SS:ms
+    
     int ms = (int)(time * 1000.0);
     int m = (ms / 1000) / 60;
     int s = (ms / 1000) % 60;
@@ -203,7 +203,7 @@ void TransportPanel::UpdateTime(double time)
 
 void TransportPanel::SetZoomLevel(double pixelsPerSecond)
 {
-    // 100 pixels/second is baseline (100%)
+    
     int zoomPercent = static_cast<int>((pixelsPerSecond / 100.0) * 100.0);
     lblZoom->SetLabel(wxString::Format("%d%%", zoomPercent));
 }
@@ -214,9 +214,9 @@ void TransportPanel::OnPlay(wxCommandEvent& evt)
     {
         if (audioEngine->IsPlaying())
         {
-            // Pause behavior: Stop but don't reset position?
-            // Since we don't have explicit Pause, we'll Stop. 
-            // Position is preserved by AudioEngine unless SetPosition(0) called.
+            
+            
+            
             audioEngine->Stop();
         }
         else
@@ -282,10 +282,10 @@ void TransportPanel::OnDefaultBankChange(wxCommandEvent& evt)
     int sel = defaultBankChoice->GetSelection();
     
     if (sel == 0) {
-        // "None" - disable auto-hitnormal
+        
         timelineView->SetDefaultHitnormalBank(std::nullopt);
     } else {
-        // 1=Normal, 2=Soft, 3=Drum
+        
         SampleSet bank;
         switch (sel) {
             case 1: bank = SampleSet::Normal; break;

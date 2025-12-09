@@ -1,9 +1,9 @@
 #include "Commands.h"
 #include <algorithm>
 
-// -----------------------------------------------------------------------------
-// AddEventCommand
-// -----------------------------------------------------------------------------
+
+
+
 
 AddEventCommand::AddEventCommand(Track* track, Event evt, std::function<void()> refreshCallback)
     : track(track), evt(evt), refresh(refreshCallback) {}
@@ -30,9 +30,9 @@ std::string AddEventCommand::GetDescription() const
     return "Add Note";
 }
 
-// -----------------------------------------------------------------------------
-// AddMultipleEventsCommand
-// -----------------------------------------------------------------------------
+
+
+
 
 AddMultipleEventsCommand::AddMultipleEventsCommand(const std::vector<Item>& items, std::function<void()> refreshCallback)
     : items(items), refresh(refreshCallback) {}
@@ -63,9 +63,9 @@ std::string AddMultipleEventsCommand::GetDescription() const
     return "Add Notes";
 }
 
-// -----------------------------------------------------------------------------
-// RemoveEventsCommand
-// -----------------------------------------------------------------------------
+
+
+
 
 RemoveEventsCommand::RemoveEventsCommand(const std::vector<Item>& items, std::function<void()> refreshCallback)
     : items(items), refresh(refreshCallback) {}
@@ -95,16 +95,16 @@ std::string RemoveEventsCommand::GetDescription() const
     return "Delete Notes";
 }
 
-// -----------------------------------------------------------------------------
-// MoveEventsCommand
-// -----------------------------------------------------------------------------
+
+
+
 
 MoveEventsCommand::MoveEventsCommand(const std::vector<MoveInfo>& moves, std::function<void()> refreshCallback)
     : moves(moves), refresh(refreshCallback) {}
 
 void MoveEventsCommand::Do()
 {
-    // Remove Originals
+    
     for (const auto& m : moves) {
         auto it = std::find_if(m.originalTrack->events.begin(), m.originalTrack->events.end(), 
             [&](const Event& e) { return e.id == m.originalEvent.id; });
@@ -112,7 +112,7 @@ void MoveEventsCommand::Do()
             m.originalTrack->events.erase(it);
     }
     
-    // Add News
+    
     for (const auto& m : moves) {
         m.newTrack->events.push_back(m.newEvent);
     }
@@ -122,7 +122,7 @@ void MoveEventsCommand::Do()
 
 void MoveEventsCommand::Undo()
 {
-    // Remove News
+    
     for (const auto& m : moves) {
         auto it = std::find_if(m.newTrack->events.begin(), m.newTrack->events.end(), 
             [&](const Event& e) { return e.id == m.newEvent.id; });
@@ -130,7 +130,7 @@ void MoveEventsCommand::Undo()
             m.newTrack->events.erase(it);
     }
     
-    // Restore Originals
+    
     for (const auto& m : moves) {
         m.originalTrack->events.push_back(m.originalEvent);
     }
@@ -142,9 +142,9 @@ std::string MoveEventsCommand::GetDescription() const
     return "Move Notes";
 }
 
-// -----------------------------------------------------------------------------
-// PasteEventsCommand
-// -----------------------------------------------------------------------------
+
+
+
 
 PasteEventsCommand::PasteEventsCommand(const std::vector<PasteItem>& items, 
     std::function<void(const std::vector<Track*>&)> selectionCallback, 
@@ -158,7 +158,7 @@ void PasteEventsCommand::Do()
         item.track->events.push_back(item.evt);
         affected.push_back(item.track);
     }
-    // Ideally we select the pasted notes
+    
     if (select) 
         select(affected);
     refresh();

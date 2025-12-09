@@ -2,7 +2,7 @@
 
 bool HitObject::isValid() const
 {
-    // Collect active addition banks
+    
     std::vector<SampleSet> usedBanks;
     if (hasWhistle) usedBanks.push_back(whistleBank);
     if (hasFinish) usedBanks.push_back(finishBank);

@@ -2,7 +2,7 @@
 #include <map>
 #include <algorithm>
 
-// Helper to generate a unique key for grouping events into tracks
+
 static std::string getTrackKey(SampleSet set, SampleType type, const std::string& filename)
 {
     if (!filename.empty())
@@ -44,12 +44,12 @@ Project OsuParser::parse(const juce::File& file)
     
     juce::String currentSection;
     
-    // Parse Timing Points and General
+    
     for (const auto& line : lines)
     {
         auto t = line.trim();
         if (t.startsWith("[")) { currentSection = t.removeCharacters("[]"); continue; }
-        if (t.isEmpty() || t.startsWith("//")) continue;
+        if (t.isEmpty() || t.startsWith("
         
         if (currentSection == "General")
         {
@@ -117,9 +117,9 @@ Project OsuParser::parse(const juce::File& file)
          return {sSet, vol};
     };
 
-    // Intermediate storage: ParentKey -> Volume -> List of Events
-    // ParentKey identifies the Sound (Set-Type-Filename)
-    // Volume identifies the Child Track
+    
+    
+    
     struct TrackData {
         SampleSet set;
         SampleType type;
@@ -134,7 +134,7 @@ Project OsuParser::parse(const juce::File& file)
     {
         auto t = line.trim();
         if (t.startsWith("[")) { currentSection = t.removeCharacters("[]"); continue; }
-        if (t.isEmpty() || t.startsWith("//")) continue;
+        if (t.isEmpty() || t.startsWith("
         
         if (currentSection == "HitObjects")
         {
@@ -162,14 +162,14 @@ Project OsuParser::parse(const juce::File& file)
                 auto [inheritedSet, inheritedVol] = getStateAt(time);
                 if (volume == 0) volume = (int)inheritedVol;
                 
-                // Resolution Logic - uses defaultSampleSet as ultimate fallback
+                
                 auto resolve = [&](int val) {
                     if (val == 0) { 
-                        // Use inherited timing point set, or fall back to project default
+                        
                         if (inheritedSet == 2) return SampleSet::Soft;
                         if (inheritedSet == 3) return SampleSet::Drum;
                         if (inheritedSet == 1) return SampleSet::Normal;
-                        // inheritedSet == 0 means "auto" - use the project default
+                        
                         return project.defaultSampleSet;
                     }
                     if (val == 2) return SampleSet::Soft;
@@ -180,9 +180,9 @@ Project OsuParser::parse(const juce::File& file)
                 SampleSet finalBaseSet = resolve(normalSet);
                 SampleSet finalAddSet = (additionSet == 0) ? finalBaseSet : resolve(additionSet);
 
-                // Add Event Helper
+                
                 auto addEvent = [&](SampleSet s, SampleType ty, const std::string& fn, double vol) {
-                    std::string key = getTrackKey(s, ty, fn); // Using helper from top of file
+                    std::string key = getTrackKey(s, ty, fn); 
                     
                     if (hierarchy.find(key) == hierarchy.end()) {
                         TrackData td;
@@ -194,7 +194,7 @@ Project OsuParser::parse(const juce::File& file)
                     
                     Event e;
                     e.time = time / 1000.0;
-                    e.volume = vol / 100.0; // scale 0-1
+                    e.volume = vol / 100.0; 
                     
                     int volInt = (int)vol;
                     hierarchy[key].eventsByVolume[volInt].push_back(e);
@@ -212,7 +212,7 @@ Project OsuParser::parse(const juce::File& file)
         }
     }
     
-    // Build Project Tracks
+    
     for (auto& [key, data] : hierarchy)
     {
         Track parent;
@@ -220,9 +220,9 @@ Project OsuParser::parse(const juce::File& file)
         parent.sampleSet = data.set;
         parent.sampleType = data.type;
         parent.customFilename = data.filename;
-        parent.isExpanded = false; // Default collapsed
+        parent.isExpanded = false; 
         
-        // Create Children for each volume
+        
         for (auto& [vol, events] : data.eventsByVolume)
         {
             Track child;
@@ -231,23 +231,23 @@ Project OsuParser::parse(const juce::File& file)
             child.sampleType = data.type;
             child.customFilename = data.filename;
             child.events = events;
-            child.gain = (float)vol / 100.0f; // Track gain applied? Or event volume? 
-            // Model: Event has volume (0-1). Track likely has gain.
-            // If we use Child Track for volume, we can set Track Gain = 1, and Event Volume = 1?
-            // Original logic: Event volume is stored.
-            // If we group by volume, we can optimization: set Track Gain = vol/100, Event Volume = 1.
-            // But let's keep Event Volume as is from parsing to be safe.
+            child.gain = (float)vol / 100.0f; 
+            
+            
+            
+            
+            
             
             child.isChildTrack = true;
             parent.children.push_back(child);
         }
         
-        // Sort children?
+        
         
         project.tracks.push_back(parent);
     }
     
-    // Sort Tracks?
+    
     
     return project;
 }
@@ -266,7 +266,7 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
     juce::String currentSection;
     bool inTimingPoints = false;
     
-    // Parse Reference
+    
     for (const auto& line : lines)
     {
         auto t = line.trim();
@@ -276,7 +276,7 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
             inTimingPoints = (currentSection == "TimingPoints");
             continue; 
         }
-        if (t.isEmpty() || t.startsWith("//")) continue;
+        if (t.isEmpty() || t.startsWith("
 
         if (currentSection == "General")
         {
@@ -294,11 +294,11 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
         }
         else if (inTimingPoints)
         {
-            timingPoints.push_back(line); // Keep original line to preserve precision
+            timingPoints.push_back(line); 
         }
     }
 
-    // Build New Content
+    
     juce::String newLine = "\r\n";
     juce::String content;
     
@@ -346,14 +346,14 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
     content += newLine;
     
     content += "[Events]" + newLine;
-    content += "//Background and Video events" + newLine;
-    content += "//Break Periods" + newLine;
-    content += "//Storyboard Layer 0 (Background)" + newLine;
-    content += "//Storyboard Layer 1 (Fail)" + newLine;
-    content += "//Storyboard Layer 2 (Pass)" + newLine;
-    content += "//Storyboard Layer 3 (Foreground)" + newLine;
-    content += "//Storyboard Layer 4 (Overlay)" + newLine;
-    content += "//Storyboard Sound Samples" + newLine;
+    content += "
+    content += "
+    content += "
+    content += "
+    content += "
+    content += "
+    content += "
+    content += "
     content += newLine;
     
     content += "[TimingPoints]" + newLine;

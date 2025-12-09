@@ -26,7 +26,7 @@ void EventPlaybackSource::releaseResources()
 
 void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo& bufferToFill)
 {
-    // Take a lock to safely read the tracks snapshot
+    
     const juce::SpinLock::ScopedLockType lock (tracksLock);
     
     if (tracksSnapshot.empty() || transportSource == nullptr)
@@ -40,7 +40,7 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
     auto numSamples = bufferToFill.numSamples;
     auto endSample = currentSample + numSamples;
 
-    // Check if any track is soloed (recursive check)
+    
     bool anySolo = false;
     std::function<void(const Track&)> checkSolo = [&](const Track& t) {
         if (t.solo) anySolo = true;
@@ -48,24 +48,24 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
     };
     for (const auto& t : tracksSnapshot) checkSolo(t);
 
-    // 1. Trigger new events
+    
     std::function<void(const Track&)> processTrack = [&](const Track& track)
     {
-        // Skip if muted, or if we're in solo mode and this track isn't soloed
+        
         if (track.mute || (anySolo && !track.solo))
             return;
 
-        // Process events
+        
         if (!track.isGrouping)
         {
-            // Standard behavior: Play track's own assigned sample(s)
+            
             for (const auto& event : track.events)
             {
                 auto eventStartSample = (int64_t) (event.time * currentSampleRate); 
                 
                 if (eventStartSample >= currentSample && eventStartSample < endSample)
                 {
-                    // Helper to play a specific sample ref
+                    
                     auto playSample = [&](SampleSet bank, SampleType type) {
                         SampleRef ref;
                         ref.set = bank;
@@ -81,12 +81,12 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
                     
                     if (track.layers.empty())
                     {
-                        // Fallback to single sample definition
+                        
                         playSample(track.sampleSet, track.sampleType);
                     }
                     else
                     {
-                        // Play all layers (supports grouping children with multiple samples)
+                        
                         for (const auto& layer : track.layers)
                         {
                             playSample(layer.bank, layer.type);
@@ -97,19 +97,19 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
         }
         else
         {
-            // Grouping behavior: Parent events trigger ALL children
+            
             for (const auto& event : track.events)
             {
                 auto eventStartSample = (int64_t) (event.time * currentSampleRate); 
                 
                 if (eventStartSample >= currentSample && eventStartSample < endSample)
                 {
-                    // Trigger every child
+                    
                     for (const auto& child : track.children)
                     {
                         if (child.mute) continue; 
                         
-                        // Helper to play a specific sample ref
+                        
                         auto playSample = [&](SampleSet bank, SampleType type) {
                             SampleRef ref;
                             ref.set = bank;
@@ -126,12 +126,12 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
 
                         if (child.layers.empty())
                         {
-                            // Fallback to single sample definition
+                            
                             playSample(child.sampleSet, child.sampleType);
                         }
                         else
                         {
-                            // Play all layers
+                            
                             for (const auto& layer : child.layers)
                             {
                                 playSample(layer.bank, layer.type);
@@ -142,7 +142,7 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
             }
         }
 
-        // Process children
+        
         for (const auto& child : track.children)
         {
             processTrack (child);
@@ -154,8 +154,8 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
         processTrack (track);
     }
     
-    // 2. Render active voices
-    // CRITICAL FIX: Clear buffer before mixing! Otherwise we mix into garbage (buzzing).
+    
+    
     bufferToFill.clearActiveBufferRegion();
     
     for (auto it = activeVoices.begin(); it != activeVoices.end();)
@@ -170,7 +170,7 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
         {
             destOffset = voice.startOffset;
             count -= voice.startOffset;
-            voice.startOffset = 0; // Consumed
+            voice.startOffset = 0; 
         }
         
         if (count > 0)
@@ -209,7 +209,7 @@ void EventPlaybackSource::setTracks (std::vector<Track>* t)
 {
     uiTracks = t;
     
-    // Create initial snapshot
+    
     if (uiTracks != nullptr)
     {
         const juce::SpinLock::ScopedLockType lock (tracksLock);

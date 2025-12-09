@@ -13,21 +13,21 @@ AudioEngine::~AudioEngine()
 
 void AudioEngine::initialize()
 {
-    // Initialize Device Manager
+    
     deviceManager.initialiseWithDefaultDevices(0, 2); 
     
-    // Connect mixer to player
+    
     audioSourcePlayer.setSource(&mixer);
     deviceManager.addAudioCallback(&audioSourcePlayer);
     
-    // Connect sources to mixer
+    
     mixer.addInputSource(&masterTransport, false);
     mixer.addInputSource(&eventPlaybackSource, false);
     
     eventPlaybackSource.setTransportSource(&masterTransport);
     eventPlaybackSource.setOffset(masterOffset);
     
-    startTimer(10); // 10ms timer for looping
+    startTimer(10); 
 }
 
 void AudioEngine::shutdown()
@@ -60,7 +60,7 @@ void AudioEngine::SetPosition(double seconds)
 
 double AudioEngine::GetPosition() const
 {
-    // Return Project Time
+    
     return masterTransport.getCurrentPosition() + masterOffset;
 }
 
@@ -129,12 +129,12 @@ std::vector<float> AudioEngine::GetWaveform(int numSamples)
     
     if (length <= 0 || channels <= 0) return peaks;
     
-    // We want 'numSamples' peaks.
-    // Chunk size
+    
+    
     long long chunkSize = length / numSamples;
     if (chunkSize < 1) chunkSize = 1;
     
-    // Buffer for reading
+    
     juce::AudioBuffer<float> buffer(channels, (int)chunkSize);
     
     long long position = 0;
@@ -143,7 +143,7 @@ std::vector<float> AudioEngine::GetWaveform(int numSamples)
         reader->read(&buffer, 0, (int)chunkSize, position, true, true);
         
         float maxVal = 0.0f;
-        // Check all channels
+        
         for (int c = 0; c < channels; ++c)
         {
             auto range = buffer.findMinMax(c, 0, (int)chunkSize);
@@ -160,7 +160,7 @@ std::vector<float> AudioEngine::GetWaveform(int numSamples)
 
 void AudioEngine::hiResTimerCallback()
 {
-    // Only loop if we have a valid loop region
+    
     if (looping && masterTransport.isPlaying() && loopStart >= 0 && loopEnd > loopStart)
     {
         double currentPos = masterTransport.getCurrentPosition();

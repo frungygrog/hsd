@@ -22,14 +22,14 @@ public:
 private:
     static juce::String GenerateHitObjectsSection(const Project& project);
     
-    // Helper to resolve sample sets and bitmasks from a collection of simultaneous events
+    
     struct HitObjectState {
         int timeMs;
-        int hitSoundBitmask = 0; // 1=Normal, 2=Whistle, 4=Finish, 8=Clap
-        int normalSet = 0;   // 0=Auto, 1=Normal, 2=Soft, 3=Drum
-        int additionSet = 0; // 0=Auto, 1=Normal, 2=Soft, 3=Drum
+        int hitSoundBitmask = 0; 
+        int normalSet = 0;   
+        int additionSet = 0; 
         int volume = 0;
         std::string filename;
-        // Logic to merge multiple events
+        
     };
 };

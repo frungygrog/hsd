@@ -3,7 +3,7 @@
 #include <vector>
 #include "../model/Project.h"
 
-// Forward declare if needed, or include JUCE File
+
 #include <juce_core/juce_core.h>
 
 class OsuParser

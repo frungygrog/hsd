@@ -6,7 +6,7 @@ struct Project
 {
     std::vector<Track> tracks;
     
-// Metadata
+
     struct TimingPoint {
         double time;
         double beatLength; 
@@ -19,13 +19,13 @@ struct Project
     double bpm = 120.0;
     double offset = 0.0;
     
-    // Original file info
+    
     std::string artist;
     std::string title;
-    std::string version; // Difficulty name
-    std::string creator;  // Mapper name
+    std::string version; 
+    std::string creator;  
     
-    SampleSet defaultSampleSet = SampleSet::Normal; // From [General] SampleSet
+    SampleSet defaultSampleSet = SampleSet::Normal; 
     
     std::string audioFilename;
     std::string projectDirectory;

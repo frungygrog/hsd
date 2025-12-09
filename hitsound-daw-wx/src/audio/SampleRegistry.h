@@ -24,7 +24,7 @@ private:
 
     std::map<juce::String, SampleEntry> samples;
     
-    // Default samples storage: Key = "Set-Type" (e.g. "1-2")
+    
     std::map<juce::String, std::unique_ptr<juce::AudioFormatReader>> defaultSamples;
     
     juce::AudioFormatManager formatManager;

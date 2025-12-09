@@ -5,9 +5,9 @@
 #include <vector>
 #include <functional>
 
-// -----------------------------------------------------------------------------
-// Add Event (Draw Tool)
-// -----------------------------------------------------------------------------
+
+
+
 class AddEventCommand : public Command
 {
 public:
@@ -23,9 +23,9 @@ private:
     std::function<void()> refresh;
 };
 
-// -----------------------------------------------------------------------------
-// Add Multiple Events (Draw Tool with auto-hitnormal)
-// -----------------------------------------------------------------------------
+
+
+
 class AddMultipleEventsCommand : public Command
 {
 public:
@@ -45,9 +45,9 @@ private:
     std::function<void()> refresh;
 };
 
-// -----------------------------------------------------------------------------
-// Remove Events (Delete)
-// -----------------------------------------------------------------------------
+
+
+
 class RemoveEventsCommand : public Command
 {
 public:
@@ -67,9 +67,9 @@ private:
     std::function<void()> refresh;
 };
 
-// -----------------------------------------------------------------------------
-// Move Events (Drag)
-// -----------------------------------------------------------------------------
+
+
+
 class MoveEventsCommand : public Command
 {
 public:
@@ -78,7 +78,7 @@ public:
         Event originalEvent;
         
         Track* newTrack;
-        Event newEvent; // Has new time
+        Event newEvent; 
     };
 
     MoveEventsCommand(const std::vector<MoveInfo>& moves, std::function<void()> refreshCallback);
@@ -92,9 +92,9 @@ private:
     std::function<void()> refresh;
 };
 
-// -----------------------------------------------------------------------------
-// Paste Events
-// -----------------------------------------------------------------------------
+
+
+
 class PasteEventsCommand : public Command
 {
 public:

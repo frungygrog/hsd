@@ -41,8 +41,8 @@ juce::AudioFormatReader* SampleRegistry::getReader (const SampleRef& ref)
     if (it != samples.end())
         return it->second.reader.get();
         
-    // Fallback to default
-    // Key for default: "Set-Type"
+    
+    
     juce::String defaultKey = juce::String (static_cast<int> (ref.set)) + "-" + juce::String (static_cast<int> (ref.type));
     auto defaultIt = defaultSamples.find (defaultKey);
     if (defaultIt != defaultSamples.end())
@@ -53,14 +53,14 @@ juce::AudioFormatReader* SampleRegistry::getReader (const SampleRef& ref)
 
 void SampleRegistry::loadDefaultSamples (const juce::File& dir)
 {
-    // Map filenames to Set/Type
-    // Filenames: "normal-hitnormal.wav", "soft-hitclap.wav", etc.
-    // Sets: Normal=0, Soft=1, Drum=2 (Based on Enum)
-    // Types: Normal=0, Whistle=3, Finish=2, Clap=1 (Based on Enum - WAIT, check Enum values)
     
-    // Enum in SampleRef.h:
-    // Set: Normal=0, Soft=1, Drum=2
-    // Type: HitNormal=0, HitClap=1, HitFinish=2, HitWhistle=3
+    
+    
+    
+    
+    
+    
+    
     
     struct DefaultDef { SampleSet set; SampleType type; juce::String filename; };
     std::vector<DefaultDef> defs = {

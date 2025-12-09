@@ -7,7 +7,7 @@ std::vector<ProjectValidator::ValidationError> ProjectValidator::Validate(Projec
 {
     std::vector<ValidationError> errors;
 
-    // Gather all events by time
+    
     struct TimeSlice {
         std::vector<Event*> events;
         std::vector<Track*> tracks;
@@ -33,7 +33,7 @@ std::vector<ProjectValidator::ValidationError> ProjectValidator::Validate(Projec
         collectEvents(track);
     }
     
-    // Validate each slice
+    
     for (auto& [time, slice] : slices)
     {
         SampleSet additionBank = SampleSet::Normal; 
@@ -49,7 +49,7 @@ std::vector<ProjectValidator::ValidationError> ProjectValidator::Validate(Projec
         {
             Track* t = slice.tracks[i];
             
-            // Check Additions
+            
             bool isAddition = (t->sampleType == SampleType::HitWhistle ||
                                t->sampleType == SampleType::HitFinish ||
                                t->sampleType == SampleType::HitClap);
@@ -71,7 +71,7 @@ std::vector<ProjectValidator::ValidationError> ProjectValidator::Validate(Projec
                 }
             }
             
-            // Check Normals
+            
             if (t->sampleType == SampleType::HitNormal)
             {
                  if (!normalBankSet)
@@ -83,10 +83,10 @@ std::vector<ProjectValidator::ValidationError> ProjectValidator::Validate(Projec
                  {
                      if (t->sampleSet != normalBank)
                      {
-                         // This is also a conflict because .osu only supports one Normal Set per object
+                         
                          conflict = true;
                          conflictingBankName = (t->sampleSet == SampleSet::Normal) ? "Normal" : (t->sampleSet == SampleSet::Soft ? "Soft" : "Drum");
-                         // For error message clarity we might want to differentiate, but generic conflict is true
+                         
                      }
                  }
             }
@@ -94,7 +94,7 @@ std::vector<ProjectValidator::ValidationError> ProjectValidator::Validate(Projec
         
         if (conflict)
         {
-            // Create error
+            
             std::string bankName = (additionBank == SampleSet::Normal) ? "Normal" : (additionBank == SampleSet::Soft ? "Soft" : "Drum");
             errors.push_back({ (double)time / 1000.0, "Conflicting addition banks: " + bankName + " vs " + conflictingBankName });
 

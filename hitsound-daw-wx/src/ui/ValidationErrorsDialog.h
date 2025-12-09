@@ -9,7 +9,7 @@ class ValidationErrorsDialog : public wxDialog
 public:
     ValidationErrorsDialog(wxWindow* parent, const std::vector<ProjectValidator::ValidationError>& errors);
 
-    // returns true if "Ignore & Save" was clicked, false if Cancelled.
+    
     bool IsIgnored() const { return ignored; }
 
 private:

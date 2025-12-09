@@ -9,7 +9,7 @@
 
 class AudioEngine;
 class TimelineView;
-// ToolType is defined in TimelineView.h
+
 
 class TransportPanel : public wxPanel
 {
@@ -33,7 +33,7 @@ private:
     
     void OnToolSelect(wxCommandEvent& evt);
     void OnToolDraw(wxCommandEvent& evt);
-    // OnToolErase removed
+    
     
     void OnSongVolumeChange(wxCommandEvent& evt);
     void OnEffectsVolumeChange(wxCommandEvent& evt);
@@ -44,18 +44,18 @@ private:
     wxBitmapButton* btnPlay;
     wxBitmapButton* btnStop;
     
-    // Tools
+    
     wxToggleButton* btnToolSelect;
     wxToggleButton* btnToolDraw;
-    // btnToolErase removed
+    
     wxToggleButton* btnLoop;
     
-    // Metadata
+    
     wxStaticText* lblZoom;
     wxChoice* snapChoice;
     wxChoice* defaultBankChoice;
     
-    // Volume sliders
+    
     wxSlider* songVolumeSlider;
     wxSlider* effectsVolumeSlider;
 

@@ -25,12 +25,12 @@ public:
     double GetPosition() const;
     double GetDuration() const;
     
-    // HighResolutionTimer
+    
     void hiResTimerCallback() override;
 
     void SetTracks(std::vector<Track>* tracks);
     
-    // Call after modifying tracks to sync audio thread's snapshot
+    
     void NotifyTracksChanged();
     
     void SetLooping(bool looping);
@@ -38,13 +38,13 @@ public:
     
     SampleRegistry& GetSampleRegistry() { return sampleRegistry; }
 
-    // Master Track
+    
     void LoadMasterTrack(const std::string& path);
     std::vector<float> GetWaveform(int numSamples);
     
-    // Volume Control
-    void SetMasterVolume(float volume);  // Song volume (0.0-1.0)
-    void SetEffectsVolume(float volume); // Effects volume (0.0-1.0)
+    
+    void SetMasterVolume(float volume);  
+    void SetEffectsVolume(float volume); 
     
 private:
     juce::AudioDeviceManager deviceManager;
@@ -62,8 +62,8 @@ private:
     double loopStart = 0.0;
     double loopEnd = 0.0;
     
-    // Audio latency compensation offset (in seconds).
-    // Negative value shifts events earlier to account for audio processing delay.
-    // TODO: Consider making this configurable via settings if different systems need different values.
+    
+    
+    
     double masterOffset = -0.029;
 };
