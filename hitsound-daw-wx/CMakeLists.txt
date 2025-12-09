@@ -58,6 +58,10 @@ add_executable(hitsound-daw-wx
     src/audio/EventPlaybackSource.h
     src/audio/SampleRegistry.cpp
     src/audio/SampleRegistry.h
+    src/io/ProjectSaver.cpp
+    src/io/ProjectSaver.h
+    src/ui/ValidationErrorsDialog.cpp
+    src/ui/ValidationErrorsDialog.h
     src/model/SampleRef.h
     src/model/SampleTypes.h
     src/model/Track.h

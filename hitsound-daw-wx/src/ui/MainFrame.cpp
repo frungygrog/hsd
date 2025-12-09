@@ -4,7 +4,10 @@
 #include "CreatePresetDialog.h"
 #include <juce_audio_devices/juce_audio_devices.h>
 #include "ProjectSetupDialog.h"
+#include "ProjectSetupDialog.h"
 #include "../io/OsuParser.h"
+#include "../io/ProjectSaver.h"
+#include "ValidationErrorsDialog.h"
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(wxID_OPEN, MainFrame::OnOpen)
@@ -147,6 +150,9 @@ void MainFrame::BuildMenu()
     fileMenu->Append(wxID_OPEN, "&Open .osu File...\tCtrl+O", "Open an osu! file directly");
     fileMenu->Append(ID_OPEN_FOLDER, "Open Project &Folder...\tCtrl+Shift+O", "Open a beatmap folder");
     fileMenu->AppendSeparator();
+    fileMenu->Append(ID_SAVE, "&Save\tCtrl+S", "Save the project");
+    fileMenu->Append(ID_SAVE_AS, "Save &As...\tCtrl+Shift+S", "Save the project as a new file");
+    fileMenu->AppendSeparator();
     fileMenu->Append(wxID_EXIT, "E&xit\tAlt+X", "Quit this program");
     menuBar->Append(fileMenu, "&File");
     
@@ -197,6 +203,8 @@ void MainFrame::BuildMenu()
     Bind(wxEVT_MENU, &MainFrame::OnLoadPreset, this, ID_LOAD_PRESET);
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ ApplyPreset("Generic"); }, ID_PRESET_GENERIC);
     Bind(wxEVT_MENU, &MainFrame::OnCreatePreset, this, ID_CREATE_PRESET);
+    Bind(wxEVT_MENU, &MainFrame::OnSave, this, ID_SAVE);
+    Bind(wxEVT_MENU, &MainFrame::OnSaveAs, this, ID_SAVE_AS);
 }
 
 void MainFrame::OnOpen(wxCommandEvent& evt)
@@ -461,5 +469,77 @@ void MainFrame::ApplyPreset(const std::string& presetName)
         timelineView->UpdateVirtualSize();
         
         wxMessageBox("Generic preset loaded successfully!\n\n6 Tracks + 1 Grouping added.", "Preset Loaded", wxICON_INFORMATION);
+    }
+}
+
+void MainFrame::OnSave(wxCommandEvent& evt)
+{
+    // Check if creator is "hsd" (watermarked) and we have a valid path
+    if (project.creator == "hsd" && !project.projectFilePath.empty())
+    {
+        PerformSave(juce::File(project.projectFilePath));
+    }
+    else
+    {
+        // Otherwise clone/watermark via Save As
+        OnSaveAs(evt);
+    }
+}
+
+void MainFrame::OnSaveAs(wxCommandEvent& evt)
+{
+    wxFileDialog saveFileDialog(this, _("Save Project As"), "", "",
+                                "osu! files (*.osu)|*.osu", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+
+    if (saveFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+
+    juce::File file(saveFileDialog.GetPath().ToStdString());
+
+    // Update internal path
+    project.projectFilePath = file.getFullPathName().toStdString();
+    project.projectDirectory = file.getParentDirectory().getFullPathName().toStdString();
+    
+    // We act as if this is now an hsd project
+    project.creator = "hsd";
+
+    PerformSave(file);
+}
+
+bool MainFrame::PerformSave(const juce::File& file)
+{
+    // 1. Validate
+    auto errors = ProjectValidator::Validate(project);
+    
+    // DEBUG:
+    if (!errors.empty()) {
+        wxMessageBox(wxString::Format("Found %llu errors.", errors.size()));
+    } else {
+        // Maybe errors are empty?
+    }
+    
+    // Refresh view to show validation colors
+    timelineView->Refresh();
+    
+    if (!errors.empty())
+    {
+        ValidationErrorsDialog dlg(this, errors);
+        int result = dlg.ShowModal();
+        if (!dlg.IsIgnored()) 
+        {
+            return false;
+        }
+    }
+    
+    // 2. Save
+    if (ProjectSaver::SaveProject(project, file))
+    {
+        wxMessageBox("Project saved successfully!", "Success", wxICON_INFORMATION);
+        return true;
+    }
+    else
+    {
+        wxMessageBox("Failed to save project. Check file permissions or disk space.", "Error", wxICON_ERROR);
+        return false;
     }
 }

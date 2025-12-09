@@ -34,6 +34,7 @@ Project OsuParser::parse(const juce::File& file)
         return project;
         
     project.projectDirectory = file.getParentDirectory().getFullPathName().toStdString();
+    project.projectFilePath = file.getFullPathName().toStdString();
         
     juce::StringArray lines;
     file.readLines(lines);

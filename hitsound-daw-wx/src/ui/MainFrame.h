@@ -16,6 +16,8 @@ public:
 
     enum {
         ID_OPEN_FOLDER = 10001,
+        ID_SAVE,
+        ID_SAVE_AS,
         ID_PLAYBACK_TIMER = 10002,
         
         // Edit
@@ -43,11 +45,16 @@ private:
     // Event Handlers
     void OnOpen(wxCommandEvent& evt);
     void OnOpenFolder(wxCommandEvent& evt);
+    void OnSave(wxCommandEvent& evt);
+    void OnSaveAs(wxCommandEvent& evt);
     void OnScrollTimeline(wxScrollWinEvent& evt);
     void OnTimer(wxTimerEvent& evt);
     void OnLoadPreset(wxCommandEvent& evt);
     void OnCreatePreset(wxCommandEvent& evt);
     void ApplyPreset(const std::string& presetName);
+
+    // Helpers
+    bool PerformSave(const juce::File& file);
 
     // UI Elements
     wxSplitterWindow* splitter;

@@ -29,4 +29,5 @@ struct Project
     
     std::string audioFilename;
     std::string projectDirectory;
+    std::string projectFilePath;
 };
