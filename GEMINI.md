@@ -56,10 +56,10 @@
         │   ├── Project.h                   # Project container with metadata
         │   ├── SampleTypes.h               # SampleSet and SampleType enums
         │   ├── SampleRef.h                 # Sample reference for audio lookup
-        │   ├── HitObject.h                 # Intermediate parsing structure
-        │   ├── Command.h                   # Undo/Redo command base class + UndoManager
-        │   ├── Commands.h                  # Concrete command implementations
-        │   └── ProjectValidator.h          # Validation logic for events
+        │   ├── HitObject.h/.cpp            # Intermediate parsing structure
+        │   ├── Command.h/.cpp              # Undo/Redo command base class + UndoManager
+        │   ├── Commands.h/.cpp             # Concrete command implementations
+        │   └── ProjectValidator.h/.cpp     # Validation logic for events
         │
         ├── audio/                          # Audio engine
         │   ├── AudioEngine.h/.cpp          # JUCE device management, transport, mixing
@@ -384,6 +384,15 @@ The main application window that orchestrates all components.
 
 The main canvas for event visualization and editing. Extends `wxScrolledWindow`.
 
+**Code Organization:**
+TimelineView uses extracted helper methods for maintainability:
+
+| Category | Methods |
+|----------|--------|
+| **Painting** | `DrawRuler()`, `DrawMasterTrack()`, `DrawTrackBackgrounds()`, `DrawGrid()`, `DrawTimingPoints()`, `DrawEvents()`, `DrawLoopRegion()`, `DrawDragGhosts()`, `DrawMarquee()`, `DrawPlayhead()` |
+| **Mouse Events** | `HandleLeftDown()`, `HandleDragging()`, `HandleLeftUp()`, `HandleRightDown()` |
+| **Event Placement** | `PlaceEvent()` - handles auto-hitnormal logic |
+
 **Coordinate System:**
 - X-axis: Time (pixels = time × pixelsPerSecond)
 - Y-axis: Track rows (header + visible tracks)
@@ -439,6 +448,17 @@ When `defaultHitnormalBank` is set and placing an addition:
 ### 6.3 TrackList (TrackList.h/.cpp)
 
 Left panel showing track hierarchy and controls.
+
+**Code Organization:**
+TrackList uses extracted helper methods for maintainability:
+
+| Category | Methods |
+|----------|--------|
+| **Painting** | `DrawHeader()`, `DrawTrackRow()`, `DrawTrackControls()`, `DrawSlider()`, `DrawPrimarySelector()`, `DrawAbbreviation()`, `DrawDropIndicator()` |
+| **Hit Testing** | `FindTrackAtY()`, `HandleHeaderClick()`, `HandleTrackClick()` |
+| **Context Menus** | `ShowParentContextMenu()`, `ShowChildContextMenu()` |
+| **Track Operations** | `AddChildToTrack()`, `EditTrack()`, `DeleteTrack()` |
+| **Utilities** | `GetAbbreviation()`, `UpdateTrackNameWithVolume()` |
 
 **Layout per Track:**
 
@@ -750,12 +770,12 @@ Dependencies are fetched automatically via CMake `FetchContent`:
 
 | Purpose | File |
 |---------|------|
-| Add new command | `model/Commands.h` |
+| Add new command | `model/Commands.h` + `model/Commands.cpp` |
 | Add new UI control | `ui/TransportPanel.cpp` |
 | Add track property | `model/Track.h` |
 | Modify parsing | `io/OsuParser.cpp` |
 | Modify export | `io/ProjectSaver.cpp` |
-| Add validation rule | `model/ProjectValidator.h` |
+| Add validation rule | `model/ProjectValidator.h` + `model/ProjectValidator.cpp` |
 | Add constants | `Constants.h` |
 
 ### 15.2 When Adding Features

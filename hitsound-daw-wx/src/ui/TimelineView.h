@@ -152,10 +152,29 @@ private:
     Track* GetEffectiveTargetTrack(Track* t);
     
     // Coordinate helpers
-    
-    // Coordinate helpers
     int timeToX(double time) const;
     double xToTime(int x) const;
+    
+    // Painting helpers
+    void DrawRuler(wxDC& dc, const wxSize& size, double visStart, double visEnd);
+    void DrawMasterTrack(wxDC& dc, const wxSize& size, int viewStartPx, int viewEndPx);
+    void DrawTrackBackgrounds(wxDC& dc, const wxSize& size, const std::vector<Track*>& visibleTracks);
+    void DrawGrid(wxDC& dc, const wxSize& size, double visStart, double visEnd);
+    void DrawTimingPoints(wxDC& dc, const wxSize& size, double totalSeconds);
+    void DrawEvents(wxDC& dc, const std::vector<Track*>& visibleTracks, double visStart, double visEnd);
+    void DrawLoopRegion(wxDC& dc, const wxSize& size);
+    void DrawDragGhosts(wxDC& dc, const std::vector<Track*>& visible);
+    void DrawMarquee(wxDC& dc);
+    void DrawPlayhead(wxDC& dc, const wxSize& size);
+    
+    // Mouse event helpers
+    void HandleLeftDown(wxMouseEvent& evt, const wxPoint& pos);
+    void HandleDragging(wxMouseEvent& evt, const wxPoint& pos);
+    void HandleLeftUp(wxMouseEvent& evt, const wxPoint& pos);
+    void HandleRightDown(const wxPoint& pos);
+    
+    // Event placement helper
+    void PlaceEvent(Track* target, double time);
     
     wxDECLARE_EVENT_TABLE();
 };

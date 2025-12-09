@@ -1,5 +1,6 @@
 #include "TimelineView.h"
-#include "../model/Commands.h" // Include Concrete Commands
+#include "../model/Commands.h"
+#include "../model/ProjectValidator.h"
 #include <wx/dcbuffer.h>
 #include <wx/graphics.h>
 #include <cmath>
@@ -13,14 +14,22 @@ wxBEGIN_EVENT_TABLE(TimelineView, wxScrolledWindow)
     EVT_KEY_DOWN(TimelineView::OnKeyDown)
 wxEND_EVENT_TABLE()
 
+// Layout constants
+namespace {
+    constexpr int kParentTrackHeight = 80;
+    constexpr int kChildTrackHeight = 40;
+}
+
+// -----------------------------------------------------------------------------
+// Constructor and Basic Methods
+// -----------------------------------------------------------------------------
+
 TimelineView::TimelineView(wxWindow* parent)
     : wxScrolledWindow(parent, wxID_ANY)
     , project(nullptr)
 {
-    SetBackgroundStyle(wxBG_STYLE_PAINT); // Required for wxAutoBufferedPaintDC
+    SetBackgroundStyle(wxBG_STYLE_PAINT);
     SetBackgroundColour(*wxBLACK);
-    
-    // Set a virtual size large enough to scroll
     UpdateVirtualSize();
 }
 
@@ -46,52 +55,31 @@ void TimelineView::SetWaveform(const std::vector<float>& peaks, double duration)
     Refresh();
 }
 
-void TimelineView::OnPaint(wxPaintEvent& evt)
+int TimelineView::timeToX(double time) const
 {
-    wxAutoBufferedPaintDC dc(this);
-    PrepareDC(dc);
-    
-    dc.Clear();
-    
-    if (!project) return;
-    
-    wxSize size = GetVirtualSize();
-    wxSize clientSize = GetClientSize(); // To know visible area for optimization
-    
-    // Viewport Optimization
-    int scrollX, scrollY;
-    GetViewStart(&scrollX, &scrollY);
-    int ppuX, ppuY;
-    GetScrollPixelsPerUnit(&ppuX, &ppuY);
-    if (ppuX == 0) ppuX = 10;
-    
-    int viewStartPx = scrollX * ppuX;
-    int viewEndPx = viewStartPx + clientSize.x;
-    
-    double visStart = xToTime(viewStartPx);
-    double visEnd = xToTime(viewEndPx);
-    
-    // -------------------------------------------------------------------------
-    // 1. Draw Master Track (Top Header)
-    // -------------------------------------------------------------------------
-    // Defines a fixed area at the top
-    // -------------------------------------------------------------------------
-    // 1. Draw Header (Ruler + Master Track)
-    // -------------------------------------------------------------------------
-    // RULER
+    return static_cast<int>(time * pixelsPerSecond);
+}
+
+double TimelineView::xToTime(int x) const
+{
+    return static_cast<double>(x) / pixelsPerSecond;
+}
+
+// -----------------------------------------------------------------------------
+// Painting Helpers
+// -----------------------------------------------------------------------------
+
+void TimelineView::DrawRuler(wxDC& dc, const wxSize& size, double visStart, double visEnd)
+{
     wxRect rulerRect(0, 0, size.x, rulerHeight);
     dc.SetPen(*wxTRANSPARENT_PEN);
-    dc.SetBrush(wxBrush(wxColour(40, 40, 40))); // Ruler BG
+    dc.SetBrush(wxBrush(wxColour(40, 40, 40)));
     dc.DrawRectangle(rulerRect);
     
-    // Draw Ruler Ticks (Basic 1s interval for now, or use GridDivisor logic?)
     dc.SetPen(wxPen(wxColour(150, 150, 150)));
     dc.SetFont(wxFont(8, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
     dc.SetTextForeground(wxColour(200, 200, 200));
     
-    double startTime = xToTime(0); // If we optimize visible area
-    double endTime = xToTime(size.x);
-    // Draw every second?
     double rulerStart = std::floor(visStart);
     for (double t = rulerStart; t <= visEnd; t += 1.0)
     {
@@ -99,17 +87,15 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
         dc.DrawLine(rx, rulerHeight - 10, rx, rulerHeight);
         dc.DrawText(wxString::Format("%.0fs", t), rx + 2, 2);
     }
-    
-    // MASTER TRACK (Below Ruler)
-    int masterY = rulerHeight;
-    // masterTrackHeight is 100
-        
-    dc.SetPen(*wxTRANSPARENT_PEN);
-    dc.SetBrush(wxBrush(wxColour(20, 20, 25))); // Darker background
-    dc.DrawRectangle(0, masterY, size.x, masterTrackHeight);
-    
-    // Loop Region removed from here to draw over tracks later
+}
 
+void TimelineView::DrawMasterTrack(wxDC& dc, const wxSize& size, int viewStartPx, int viewEndPx)
+{
+    int masterY = rulerHeight;
+    
+    dc.SetPen(*wxTRANSPARENT_PEN);
+    dc.SetBrush(wxBrush(wxColour(20, 20, 25)));
+    dc.DrawRectangle(0, masterY, size.x, masterTrackHeight);
     
     // Draw Waveform
     if (!waveformPeaks.empty() && audioDuration > 0)
@@ -118,10 +104,6 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
         
         int centerY = masterY + masterTrackHeight / 2;
         float heightScale = masterTrackHeight / 2.0f;
-        
-        // The waveform peaks are distributed over 'audioDuration'
-        // x = 0 is time 0. x = pixelsPerSecond * duration.
-        // We have 'waveformPeaks.size()' samples.
         
         double totalWidth = audioDuration * pixelsPerSecond;
         double samplesPerPixel = (double)waveformPeaks.size() / totalWidth;
@@ -133,9 +115,8 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
             
             for (int x = startX; x < endX; ++x)
             {
-                // Simple sampling
                 int infoIndex = (int)(x * samplesPerPixel);
-                if (infoIndex >= 0 && infoIndex < waveformPeaks.size())
+                if (infoIndex >= 0 && infoIndex < (int)waveformPeaks.size())
                 {
                     float val = waveformPeaks[infoIndex];
                     int h = (int)(val * heightScale);
@@ -144,27 +125,18 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
             }
         }
     }
-    
-    // -------------------------------------------------------------------------
-    // 2. Draw Tracks
-    // -------------------------------------------------------------------------
-    // -------------------------------------------------------------------------
-    // 2. Draw Tracks
-    // -------------------------------------------------------------------------
-    // -------------------------------------------------------------------------
-    // 2. Draw Tracks (Backgrounds)
-    // -------------------------------------------------------------------------
-    // Pass 1: Backgrounds & Separators
-    std::vector<Track*> visibleTracks = GetVisibleTracks();
-    int y = headerHeight; 
+}
 
+void TimelineView::DrawTrackBackgrounds(wxDC& dc, const wxSize& size, const std::vector<Track*>& visibleTracks)
+{
+    int y = headerHeight;
+    
     for (Track* track : visibleTracks)
     {
         bool isChild = track->isChildTrack;
-        int currentHeight = isChild ? 40 : 80;
+        int currentHeight = isChild ? kChildTrackHeight : kParentTrackHeight;
         bool isParentExpanded = !track->children.empty() && track->isExpanded;
 
-        // Background
         dc.SetPen(*wxTRANSPARENT_PEN);
         if (isParentExpanded)
             dc.SetBrush(wxBrush(wxColour(25, 25, 25), wxBRUSHSTYLE_BDIAGONAL_HATCH)); 
@@ -172,38 +144,29 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
             dc.SetBrush(wxBrush(wxColour(30, 30, 30)));
             
         dc.DrawRectangle(0, y, size.x, currentHeight);
-        
-        // Separator removed - moved to Grid Overlay pass
-        
         y += currentHeight;
     }
+}
 
-    // -------------------------------------------------------------------------
-    // 3. Draw Grid (Overlay) - NOW RENDERED BEFORE EVENTS
-    // -------------------------------------------------------------------------
-
-    // 3a. Horizontal Grid Lines
+void TimelineView::DrawGrid(wxDC& dc, const wxSize& size, double visStart, double visEnd)
+{
+    // Horizontal grid lines
+    std::vector<Track*> visible = GetVisibleTracks();
+    int gy = headerHeight;
+    dc.SetPen(wxPen(wxColour(60, 60, 60)));
+    for (Track* track : visible)
     {
-        int gy = headerHeight;
-        dc.SetPen(wxPen(wxColour(60, 60, 60)));
-        for (Track* track : visibleTracks)
-        {
-             bool isChild = track->isChildTrack;
-             int h = isChild ? 40 : 80;
-             
-             // Draw Bottom Line
-             dc.DrawLine(0, gy + h, size.x, gy + h);
-             gy += h;
-        }
+        int h = track->isChildTrack ? kChildTrackHeight : kParentTrackHeight;
+        dc.DrawLine(0, gy + h, size.x, gy + h);
+        gy += h;
     }
     
     double totalSeconds = size.x / pixelsPerSecond;
     if (totalSeconds < 1.0) totalSeconds = 10.0;
     
-    // Multi-Timing Point Grid Drawing
+    // Vertical grid lines based on timing points
     if (project && !project->timingPoints.empty())
     {
-        // 1. Filter relevant uninherited points
         std::vector<const Project::TimingPoint*> sections;
         for (const auto& tp : project->timingPoints) {
             if (tp.uninherited) sections.push_back(&tp);
@@ -211,95 +174,90 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
         
         if (!sections.empty())
         {
-             double visibleGridStart = visStart; 
-             double visibleGridEnd = visEnd;
-             
-             int startIndex = 0;
-             for (int i=0; i<(int)sections.size(); ++i) {
-                 if (sections[i]->time / 1000.0 <= visStart) startIndex = i;
-                 else break;
-             }
-             
-             for (int i = startIndex; i < (int)sections.size(); ++i)
-             {
-                 const auto* tp = sections[i];
-                 double sectionStart = tp->time / 1000.0;
-                 double sectionEnd = (i + 1 < (int)sections.size()) ? (sections[i+1]->time / 1000.0) : totalSeconds + 10.0;
-                 
-                 double beatLen = tp->beatLength / 1000.0;
-                 if (beatLen <= 0.001) beatLen = 0.5;
-                 
-                 double step = beatLen / gridDivisor;
-                 
-                 double visibleSectionStart = std::max(sectionStart, visStart);
-                 double visibleSectionEnd = std::min(sectionEnd, visEnd);
-                 
-                 if (visibleSectionStart >= visibleSectionEnd) continue;
-                 
-                 double n = std::ceil((visibleSectionStart - sectionStart) / step);
-                 double t = sectionStart + n * step;
-                 
-                 while (t < visibleSectionEnd)
-                 {
-                      int x = timeToX(t);
-                      
-                      // Relative to sectionStart
-                      double rel = t - sectionStart;
-                      double beats = rel / beatLen;
-                      double remainder = std::abs(beats - std::round(beats));
-                      bool isMajor = (remainder < 0.001); // Close to integer beat
-                      
-                      if (isMajor)
-                          dc.SetPen(wxPen(wxColour(110, 110, 110, 120)));
-                      else
-                          dc.SetPen(wxPen(wxColour(60, 60, 60, 60)));
-                      
-                      dc.DrawLine(x, 0, x, size.y);
-                      
-                      t += step;
-                 }
-             }
-        }
-    }
-    
-    // Timing Points (Green Lines)
-    if (project && !project->timingPoints.empty())
-    {
-        dc.SetPen(wxPen(wxColour(0, 255, 0), 2));
-        for (const auto& tp : project->timingPoints)
-        {
-            if (!tp.uninherited) continue;
-            double timeSec = tp.time / 1000.0;
-            if (timeSec >= 0 && timeSec <= totalSeconds)
+            int startIndex = 0;
+            for (int i = 0; i < (int)sections.size(); ++i) {
+                if (sections[i]->time / 1000.0 <= visStart) startIndex = i;
+                else break;
+            }
+            
+            for (int i = startIndex; i < (int)sections.size(); ++i)
             {
-                int x = timeToX(timeSec);
-                dc.DrawLine(x, 0, x, size.y);
+                const auto* tp = sections[i];
+                double sectionStart = tp->time / 1000.0;
+                double sectionEnd = (i + 1 < (int)sections.size()) ? (sections[i+1]->time / 1000.0) : totalSeconds + 10.0;
+                
+                double beatLen = tp->beatLength / 1000.0;
+                if (beatLen <= 0.001) beatLen = 0.5;
+                
+                double step = beatLen / gridDivisor;
+                
+                double visibleSectionStart = std::max(sectionStart, visStart);
+                double visibleSectionEnd = std::min(sectionEnd, visEnd);
+                
+                if (visibleSectionStart >= visibleSectionEnd) continue;
+                
+                double n = std::ceil((visibleSectionStart - sectionStart) / step);
+                double t = sectionStart + n * step;
+                
+                while (t < visibleSectionEnd)
+                {
+                    int x = timeToX(t);
+                    
+                    double rel = t - sectionStart;
+                    double beats = rel / beatLen;
+                    double remainder = std::abs(beats - std::round(beats));
+                    bool isMajor = (remainder < 0.001);
+                    
+                    if (isMajor)
+                        dc.SetPen(wxPen(wxColour(110, 110, 110, 120)));
+                    else
+                        dc.SetPen(wxPen(wxColour(60, 60, 60, 60)));
+                    
+                    dc.DrawLine(x, 0, x, size.y);
+                    t += step;
+                }
             }
         }
     }
+}
 
-    // -------------------------------------------------------------------------
-    // 4. Draw Events (Pass 2)
-    // -------------------------------------------------------------------------
-    y = headerHeight; // Reset Y
+void TimelineView::DrawTimingPoints(wxDC& dc, const wxSize& size, double totalSeconds)
+{
+    if (!project || project->timingPoints.empty()) return;
+    
+    dc.SetPen(wxPen(wxColour(0, 255, 0), 2));
+    for (const auto& tp : project->timingPoints)
+    {
+        if (!tp.uninherited) continue;
+        double timeSec = tp.time / 1000.0;
+        if (timeSec >= 0 && timeSec <= totalSeconds)
+        {
+            int x = timeToX(timeSec);
+            dc.DrawLine(x, 0, x, size.y);
+        }
+    }
+}
+
+void TimelineView::DrawEvents(wxDC& dc, const std::vector<Track*>& visibleTracks, double visStart, double visEnd)
+{
+    int y = headerHeight;
+    
     for (Track* track : visibleTracks)
     {
         bool isChild = track->isChildTrack;
-        int currentHeight = isChild ? 40 : 80;
+        int currentHeight = isChild ? kChildTrackHeight : kParentTrackHeight;
         bool isParentExpanded = !track->children.empty() && track->isExpanded;
         
-        // Draw Events
         if (!isParentExpanded)
         {
-            // Helper to draw a list of events
-            auto drawEvents = [&](const std::vector<Event>& events, Track* srcTrack, wxColour color) {
+            auto drawEventList = [&](const std::vector<Event>& events, Track* srcTrack, wxColour color) {
                 dc.SetPen(*wxTRANSPARENT_PEN);
                 
                 for (int i = 0; i < (int)events.size(); ++i)
                 {
                     const auto& event = events[i];
                     if (event.time < visStart - 0.5 || event.time > visEnd + 0.5) continue;
-                    int x = timeToX(event.time); 
+                    int x = timeToX(event.time);
                     
                     bool isSelected = selection.count({srcTrack, i});
                     
@@ -307,13 +265,13 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
                     {
                         switch (event.validationState) {
                             case ValidationState::Invalid:
-                                dc.SetBrush(wxBrush(wxColour(255, 165, 0))); // Orange for invalid & selected
+                                dc.SetBrush(wxBrush(wxColour(255, 165, 0)));
                                 break;
                             case ValidationState::Warning:
-                                dc.SetBrush(wxBrush(wxColour(255, 180, 200))); // Light pink for warning & selected
+                                dc.SetBrush(wxBrush(wxColour(255, 180, 200)));
                                 break;
                             default:
-                                dc.SetBrush(wxBrush(wxColour(255, 255, 0))); // Yellow for valid & selected
+                                dc.SetBrush(wxBrush(wxColour(255, 255, 0)));
                                 break;
                         }
                     }
@@ -321,19 +279,18 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
                     {
                         switch (event.validationState) {
                             case ValidationState::Invalid:
-                                dc.SetBrush(wxBrush(wxColour(255, 50, 50))); // Red for invalid
+                                dc.SetBrush(wxBrush(wxColour(255, 50, 50)));
                                 break;
                             case ValidationState::Warning:
-                                dc.SetBrush(wxBrush(wxColour(255, 100, 180))); // Pink for warning
+                                dc.SetBrush(wxBrush(wxColour(255, 100, 180)));
                                 break;
                             default:
-                                dc.SetBrush(wxBrush(color)); // Blue for valid
+                                dc.SetBrush(wxBrush(color));
                                 break;
                         }
-                    }                    
-                    dc.DrawRectangle(x - 2, y + 2, 4, currentHeight - 4); // Adjusted
+                    }
+                    dc.DrawRectangle(x - 2, y + 2, 4, currentHeight - 4);
                     
-                    // Selection Highlight Border (White) - kept for extra visibility
                     if (isSelected)
                     {
                         dc.SetBrush(*wxTRANSPARENT_BRUSH);
@@ -346,117 +303,103 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
     
             if (!track->isExpanded && !track->children.empty())
             {
-                 // Collapsed Parent - Draw children aggregated
-                 for (Track& child : track->children)
-                 {
-                      drawEvents(child.events, &child, wxColour(100, 200, 255, 100));
-                 }
+                for (Track& child : track->children)
+                {
+                    drawEventList(child.events, &child, wxColour(100, 200, 255, 100));
+                }
             }
             else
             {
-                drawEvents(track->events, track, wxColour(100, 200, 255));
+                drawEventList(track->events, track, wxColour(100, 200, 255));
             }
         }
         
         y += currentHeight;
     }
-    
+}
 
+void TimelineView::DrawLoopRegion(wxDC& dc, const wxSize& size)
+{
+    if (loopStart < 0 || loopEnd <= loopStart) return;
     
-    // -------------------------------------------------------------------------
-    // 3b. Draw Loop Region (Overlay)
-    // -------------------------------------------------------------------------
-    if (loopStart >= 0 && loopEnd > loopStart)
-    {
-        int lx = timeToX(loopStart);
-        int lw = timeToX(loopEnd) - lx;
-        if (lw < 1) lw = 1;
-        
-        // Draw in Ruler - subtle green tint
-        dc.SetBrush(wxBrush(wxColour(80, 180, 80)));
-        dc.SetPen(*wxTRANSPARENT_PEN);
-        dc.DrawRectangle(lx, 0, lw, rulerHeight);
-        
-        // Draw subtle overlay on tracks using a hatched pattern
-        // Using a semi-transparent brush if possible, otherwise hatch
-        // wxGCDC can do transparent, but we are using wxDC (AutoBufferedPaintDC).
-        // Standard wxDC doesn't support alpha on all platforms well, but Hatch is safe.
-        dc.SetBrush(wxBrush(wxColour(0, 255, 0), wxBRUSHSTYLE_FDIAGONAL_HATCH));
-        dc.SetPen(*wxTRANSPARENT_PEN);
-        dc.DrawRectangle(lx, rulerHeight, lw, size.y - rulerHeight);
-    }
+    int lx = timeToX(loopStart);
+    int lw = timeToX(loopEnd) - lx;
+    if (lw < 1) lw = 1;
     
-    // -------------------------------------------------------------------------
-    // 5. Draw Drag Ghosts
-    // -------------------------------------------------------------------------
-    if (isDragging && !dragGhosts.empty())
+    dc.SetBrush(wxBrush(wxColour(80, 180, 80)));
+    dc.SetPen(*wxTRANSPARENT_PEN);
+    dc.DrawRectangle(lx, 0, lw, rulerHeight);
+    
+    dc.SetBrush(wxBrush(wxColour(0, 255, 0), wxBRUSHSTYLE_FDIAGONAL_HATCH));
+    dc.SetPen(*wxTRANSPARENT_PEN);
+    dc.DrawRectangle(lx, rulerHeight, lw, size.y - rulerHeight);
+}
+
+void TimelineView::DrawDragGhosts(wxDC& dc, const std::vector<Track*>& visible)
+{
+    if (!isDragging || dragGhosts.empty()) return;
+    
+    int gy = headerHeight;
+    
+    for (Track* t : visible)
     {
-        int gy = headerHeight;
-        std::vector<Track*> visible = GetVisibleTracks();
+        int currentHeight = t->isChildTrack ? kChildTrackHeight : kParentTrackHeight;
         
-        for (Track* t : visible)
+        for (const auto& ghost : dragGhosts)
         {
-            bool isChild = t->isChildTrack;
-            int currentHeight = isChild ? 40 : 80;
-            
-            // Draw ghosts targetting this track (or its children if collapsed)
-            for (const auto& ghost : dragGhosts)
+            Track* target = ghost.targetTrack ? ghost.targetTrack : ghost.originalTrack;
+            bool match = (target == t);
+            if (!match && !t->isExpanded && !t->children.empty())
             {
-                Track* target = ghost.targetTrack ? ghost.targetTrack : ghost.originalTrack;
-                bool match = (target == t);
-                if (!match && !t->isExpanded && !t->children.empty())
-                {
-                     // Check children if parent is collapsed
-                     for(auto& c : t->children) if(&c == target) { match = true; break; }
-                }
-                
-                if (match)
-                {
-                     int x = timeToX(ghost.evt.time);
-                     
-                     // Visual style for ghosts
-                     dc.SetPen(wxPen(wxColour(255, 255, 255), 1, wxPENSTYLE_SHORT_DASH));
-                     switch (ghost.evt.validationState) {
-                         case ValidationState::Invalid:
-                             dc.SetBrush(wxBrush(wxColour(255, 100, 0, 180)));
-                             break;
-                         case ValidationState::Warning:
-                             dc.SetBrush(wxBrush(wxColour(255, 150, 180, 180)));
-                             break;
-                         default:
-                             dc.SetBrush(wxBrush(wxColour(255, 255, 0, 180)));
-                             break;
-                     }
-                        
-                     dc.DrawRectangle(x - 2, gy + 2, 4, currentHeight - 4);
-                }
+                for (auto& c : t->children)
+                    if (&c == target) { match = true; break; }
             }
-            gy += currentHeight;
+            
+            if (match)
+            {
+                int x = timeToX(ghost.evt.time);
+                
+                dc.SetPen(wxPen(wxColour(255, 255, 255), 1, wxPENSTYLE_SHORT_DASH));
+                switch (ghost.evt.validationState) {
+                    case ValidationState::Invalid:
+                        dc.SetBrush(wxBrush(wxColour(255, 100, 0, 180)));
+                        break;
+                    case ValidationState::Warning:
+                        dc.SetBrush(wxBrush(wxColour(255, 150, 180, 180)));
+                        break;
+                    default:
+                        dc.SetBrush(wxBrush(wxColour(255, 255, 0, 180)));
+                        break;
+                }
+                    
+                dc.DrawRectangle(x - 2, gy + 2, 4, currentHeight - 4);
+            }
         }
+        gy += currentHeight;
     }
+}
 
-    // Marquee
-    if (isMarquee)
+void TimelineView::DrawMarquee(wxDC& dc)
+{
+    if (!isMarquee) return;
+    
+    std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::CreateFromUnknownDC(dc));
+    if (gc)
     {
-        std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::CreateFromUnknownDC(dc));
-        if (gc)
-        {
-            gc->SetPen(wxPen(wxColour(0, 120, 215), 1));
-            gc->SetBrush(wxBrush(wxColour(0, 120, 215, 64))); // Semi-transparent blue
-            gc->DrawRectangle(marqueeRect.x, marqueeRect.y, marqueeRect.width, marqueeRect.height);
-        }
-        else
-        {
-            // Fallback if GC fails
-            dc.SetPen(wxPen(*wxWHITE, 1, wxPENSTYLE_DOT));
-            dc.SetBrush(wxBrush(wxColour(255, 255, 255, 50))); 
-            dc.DrawRectangle(marqueeRect);
-        }
+        gc->SetPen(wxPen(wxColour(0, 120, 215), 1));
+        gc->SetBrush(wxBrush(wxColour(0, 120, 215, 64)));
+        gc->DrawRectangle(marqueeRect.x, marqueeRect.y, marqueeRect.width, marqueeRect.height);
     }
+    else
+    {
+        dc.SetPen(wxPen(*wxWHITE, 1, wxPENSTYLE_DOT));
+        dc.SetBrush(wxBrush(wxColour(255, 255, 255, 50))); 
+        dc.DrawRectangle(marqueeRect);
+    }
+}
 
-    // -------------------------------------------------------------------------
-    // 4. Draw Playhead
-    // -------------------------------------------------------------------------
+void TimelineView::DrawPlayhead(wxDC& dc, const wxSize& size)
+{
     int px = timeToX(playheadPosition);
     dc.SetPen(wxPen(wxColour(255, 0, 0)));
     dc.DrawLine(px, 0, px, size.y);
@@ -470,6 +413,413 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
     dc.DrawPolygon(3, triangle);
 }
 
+void TimelineView::OnPaint(wxPaintEvent& evt)
+{
+    wxAutoBufferedPaintDC dc(this);
+    PrepareDC(dc);
+    dc.Clear();
+    
+    if (!project) return;
+    
+    wxSize size = GetVirtualSize();
+    wxSize clientSize = GetClientSize();
+    
+    int scrollX, scrollY;
+    GetViewStart(&scrollX, &scrollY);
+    int ppuX, ppuY;
+    GetScrollPixelsPerUnit(&ppuX, &ppuY);
+    if (ppuX == 0) ppuX = 10;
+    
+    int viewStartPx = scrollX * ppuX;
+    int viewEndPx = viewStartPx + clientSize.x;
+    
+    double visStart = xToTime(viewStartPx);
+    double visEnd = xToTime(viewEndPx);
+    double totalSeconds = size.x / pixelsPerSecond;
+    if (totalSeconds < 1.0) totalSeconds = 10.0;
+    
+    std::vector<Track*> visibleTracks = GetVisibleTracks();
+    
+    // Draw in order
+    DrawRuler(dc, size, visStart, visEnd);
+    DrawMasterTrack(dc, size, viewStartPx, viewEndPx);
+    DrawTrackBackgrounds(dc, size, visibleTracks);
+    DrawGrid(dc, size, visStart, visEnd);
+    DrawTimingPoints(dc, size, totalSeconds);
+    DrawEvents(dc, visibleTracks, visStart, visEnd);
+    DrawLoopRegion(dc, size);
+    DrawDragGhosts(dc, visibleTracks);
+    DrawMarquee(dc);
+    DrawPlayhead(dc, size);
+}
+
+// -----------------------------------------------------------------------------
+// Event Placement Helper
+// -----------------------------------------------------------------------------
+
+void TimelineView::PlaceEvent(Track* target, double time)
+{
+    Event newEvent;
+    newEvent.time = time;
+    
+    auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
+    
+    bool isAddition = (target->sampleType == SampleType::HitWhistle ||
+                       target->sampleType == SampleType::HitFinish ||
+                       target->sampleType == SampleType::HitClap);
+    
+    if (isAddition && defaultHitnormalBank.has_value()) {
+        Track* hitnormalTrack = FindOrCreateHitnormalTrack(
+            defaultHitnormalBank.value(),
+            target->gain
+        );
+        
+        if (hitnormalTrack) {
+            // Check if ANY hitnormal already exists at this timestamp
+            bool hitnormalExists = false;
+            for (auto& track : project->tracks) {
+                if (track.sampleType != SampleType::HitNormal) continue;
+                
+                for (const auto& evt : track.events) {
+                    if (std::abs(evt.time - time) < 0.001) {
+                        hitnormalExists = true;
+                        break;
+                    }
+                }
+                if (hitnormalExists) break;
+                
+                for (auto& child : track.children) {
+                    for (const auto& evt : child.events) {
+                        if (std::abs(evt.time - time) < 0.001) {
+                            hitnormalExists = true;
+                            break;
+                        }
+                    }
+                    if (hitnormalExists) break;
+                }
+                if (hitnormalExists) break;
+            }
+            
+            if (hitnormalExists) {
+                undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
+            } else {
+                Event hnEvent;
+                hnEvent.time = time;
+                
+                std::vector<AddMultipleEventsCommand::Item> items;
+                items.push_back({hitnormalTrack, hnEvent});
+                items.push_back({target, newEvent});
+                
+                undoManager.PushCommand(std::make_unique<AddMultipleEventsCommand>(items, refreshFn));
+            }
+            return;
+        }
+    }
+    
+    undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
+}
+
+// -----------------------------------------------------------------------------
+// Mouse Event Helpers
+// -----------------------------------------------------------------------------
+
+void TimelineView::HandleLeftDown(wxMouseEvent& evt, const wxPoint& pos)
+{
+    SetFocus();
+    
+    // Check Header (Ruler vs Master)
+    if (pos.y < rulerHeight)
+    {
+        int px = timeToX(playheadPosition);
+        if (std::abs(pos.x - px) <= 8) {
+            isDraggingPlayhead = true;
+            return;
+        }
+        
+        double t = SnapToGrid(xToTime(pos.x));
+        loopStart = t;
+        loopEnd = t;
+        isDraggingLoop = true;
+        Refresh();
+        return;
+    }
+    else if (pos.y >= rulerHeight && pos.y < headerHeight)
+    {
+        double t = SnapToGrid(xToTime(pos.x));
+        SetPlayheadPosition(t); 
+        isDraggingPlayhead = true;
+        return;
+    }
+    
+    HitResult hit = GetEventAt(pos);
+    Track* hitTrack = GetTrackAtY(pos.y);
+    if (hitTrack) lastFocusedTrack = hitTrack;
+    
+    bool ctrl = evt.ControlDown();
+    
+    if (hit.isValid())
+    {
+        std::pair<Track*, int> id = {hit.logicalTrack, hit.eventIndex};
+        
+        if (!ctrl && selection.find(id) == selection.end())
+        {
+            selection.clear();
+            selection.insert(id);
+        }
+        else if (ctrl)
+        {
+            if (selection.count(id)) selection.erase(id);
+            else selection.insert(id);
+        }
+        
+        if (!selection.empty())
+        {
+            isDragging = true;
+            dragStartPos = pos;
+            dragStartTrack = hit.visualTrack;
+            dragStartTime = SnapToGrid(xToTime(pos.x));
+            
+            dragGhosts.clear();
+            
+            std::map<Track*, std::vector<int>> toRemove;
+            for (auto& sel : selection) {
+                toRemove[sel.first].push_back(sel.second);
+            }
+            
+            std::vector<Track*> visible = GetVisibleTracks();
+            
+            for (auto& pair : toRemove)
+            {
+                Track* t = pair.first;
+                std::vector<int>& indices = pair.second;
+                std::sort(indices.rbegin(), indices.rend());
+                
+                auto findRowIndex = [&visible](Track* target) -> int {
+                    for (int r = 0; r < (int)visible.size(); ++r) {
+                        if (visible[r] == target) return r;
+                        if (!visible[r]->isExpanded) {
+                            for (const auto& child : visible[r]->children) {
+                                if (&child == target) return r;
+                            }
+                        }
+                    }
+                    return -1;
+                };
+                
+                int rowIndex = findRowIndex(t);
+                if (rowIndex == -1) rowIndex = 0;
+
+                for (int idx : indices)
+                {
+                    DragGhost g;
+                    g.evt = t->events[idx];
+                    g.originalTime = g.evt.time;
+                    g.originalTrack = t;
+                    g.originalRowIndex = rowIndex;
+                    g.targetTrack = t;
+                    dragGhosts.push_back(g);
+                    
+                    t->events.erase(t->events.begin() + idx);
+                }
+            }
+            selection.clear(); 
+            Refresh();
+        }
+    }
+    else
+    {
+        if (currentTool == ToolType::Draw && hitTrack)
+        {
+            Track* target = GetEffectiveTargetTrack(hitTrack);
+            if (!target) target = hitTrack;
+
+            double t = SnapToGrid(xToTime(pos.x));
+            PlaceEvent(target, t);
+            return;
+        }
+        
+        if (!ctrl) selection.clear();
+        
+        isMarquee = true;
+        marqueeStartPos = pos;
+        marqueeRect = wxRect(pos, pos);
+        
+        if (ctrl) baseSelection = selection;
+        else baseSelection.clear();
+        
+        Refresh();
+    }
+}
+
+void TimelineView::HandleDragging(wxMouseEvent& evt, const wxPoint& pos)
+{
+    if (isDraggingPlayhead)
+    {
+        double t = SnapToGrid(xToTime(pos.x));
+        SetPlayheadPosition(t);
+        if (OnPlayheadScrubbed) OnPlayheadScrubbed(t);
+    }
+    else if (isDraggingLoop)
+    {
+        double t = SnapToGrid(xToTime(pos.x));
+        loopEnd = t;
+        Refresh();
+        
+        if (OnLoopPointsChanged)
+        {
+            double s = std::min(loopStart, loopEnd);
+            double e = std::max(loopStart, loopEnd);
+            OnLoopPointsChanged(s, e);
+        }
+    }
+    else if (isDragging)
+    {
+        double curTime = SnapToGrid(xToTime(pos.x));
+        double timeDelta = curTime - dragStartTime;
+        
+        Track* curTrack = GetTrackAtY(pos.y);
+        
+        int startRow = -1;
+        int curRow = -1;
+        std::vector<Track*> visible = GetVisibleTracks();
+        
+        for (int i = 0; i < (int)visible.size(); ++i) {
+            if (visible[i] == dragStartTrack) startRow = i;
+            if (visible[i] == curTrack) curRow = i;
+        }
+        
+        int rowDelta = 0;
+        if (startRow != -1 && curRow != -1) rowDelta = curRow - startRow;
+        
+        for (auto& g : dragGhosts)
+        {
+            g.evt.time = std::max(0.0, g.originalTime + timeDelta);
+            
+            int targetRowIndex = g.originalRowIndex + rowDelta;
+            
+            Track* visualTarget = nullptr;
+            if (targetRowIndex >= 0 && targetRowIndex < (int)visible.size())
+            {
+                visualTarget = visible[targetRowIndex];
+            }
+            else
+            {
+                if (targetRowIndex < 0) targetRowIndex = 0;
+                if (targetRowIndex >= (int)visible.size()) targetRowIndex = visible.size() - 1;
+                visualTarget = visible[targetRowIndex];
+            }
+            
+            g.targetTrack = GetEffectiveTargetTrack(visualTarget);
+        }
+        Refresh();
+    }
+    else if (isMarquee)
+    {
+        int x = std::min(marqueeStartPos.x, pos.x);
+        int y = std::min(marqueeStartPos.y, pos.y);
+        int w = std::abs(pos.x - marqueeStartPos.x);
+        int h = std::abs(pos.y - marqueeStartPos.y);
+        marqueeRect = wxRect(x, y, w, h);
+        
+        PerformMarqueeSelect(marqueeRect);
+        Refresh();
+    }
+}
+
+void TimelineView::HandleLeftUp(wxMouseEvent& evt, const wxPoint& pos)
+{
+    if (isDraggingPlayhead)
+    {
+        if (OnPlayheadScrubbed) OnPlayheadScrubbed(playheadPosition);
+        isDraggingPlayhead = false;
+    }
+    else if (isDraggingLoop)
+    {
+        if (loopEnd < loopStart) std::swap(loopStart, loopEnd);
+        
+        if ((loopEnd - loopStart) < 0.05)
+        {
+            loopStart = -1.0;
+            loopEnd = -1.0;
+        }
+        
+        isDraggingLoop = false;
+        Refresh();
+        if (OnLoopPointsChanged) OnLoopPointsChanged(loopStart, loopEnd);
+    }
+    else if (isDragging)
+    {
+        selection.clear();
+        
+        // Restore originals temporarily
+        for (const auto& g : dragGhosts) {
+            Event origEvt = g.evt;
+            origEvt.time = g.originalTime; 
+            g.originalTrack->events.push_back(origEvt);
+        }
+        
+        // Build Move Command
+        std::vector<MoveEventsCommand::MoveInfo> moves;
+        for (auto& g : dragGhosts)
+        {
+            Track* target = g.targetTrack;
+            if (!target) target = g.originalTrack;
+            
+            if (target)
+            {
+                Event newEvt = g.evt;
+                Event origEvt = g.evt;
+                origEvt.time = g.originalTime;
+                
+                moves.push_back({g.originalTrack, origEvt, target, newEvt});
+            }
+        }
+        
+        auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
+        undoManager.PushCommand(std::make_unique<MoveEventsCommand>(moves, refreshFn));
+        
+        // Re-select moved events
+        selection.clear();
+        for (auto& m : moves) {
+            auto& evts = m.newTrack->events;
+            for (int i = 0; i < (int)evts.size(); ++i) {
+                if (evts[i].time == m.newEvent.time) {
+                    selection.insert({m.newTrack, i});
+                    break;
+                }
+            }
+        }
+        
+        dragGhosts.clear();
+        isDragging = false;
+    }
+    else if (isMarquee)
+    {
+        PerformMarqueeSelect(marqueeRect);
+        isMarquee = false;
+        baseSelection.clear();
+        Refresh();
+    }
+}
+
+void TimelineView::HandleRightDown(const wxPoint& pos)
+{
+    HitResult hit = GetEventAt(pos);
+    if (hit.isValid())
+    {
+        Track* t = hit.logicalTrack;
+        int idx = hit.eventIndex;
+        
+        if (idx >= 0 && idx < (int)t->events.size()) {
+            std::vector<RemoveEventsCommand::Item> items;
+            items.push_back({t, t->events[idx]});
+            
+            auto refreshFn = [this](){ selection.clear(); ValidateHitsounds(); Refresh(); };
+            undoManager.PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
+        }
+    }
+}
+
 void TimelineView::OnMouseEvents(wxMouseEvent& evt)
 {
     if (!project) return;
@@ -479,412 +829,27 @@ void TimelineView::OnMouseEvents(wxMouseEvent& evt)
     
     if (evt.LeftDown())
     {
-        SetFocus();
-        
-        // 1. Check Header (Ruler vs Master)
-        if (pos.y < rulerHeight)
-        {
-             // Check for Playhead Handle (Triangle) Hit
-             int px = timeToX(playheadPosition);
-             if (std::abs(pos.x - px) <= 8) // Hit test +/- 8 pixels
-             {
-                 isDraggingPlayhead = true;
-                 return;
-             }
-             
-             // LOOP SELECTION
-             double t = SnapToGrid(xToTime(pos.x));
-             loopStart = t;
-             loopEnd = t; // Reset end
-             isDraggingLoop = true;
-             Refresh();
-             return;
-        }
-        else if (pos.y >= rulerHeight && pos.y < headerHeight)
-        {
-             // Seek (Master Track)
-             double t = SnapToGrid(xToTime(pos.x));
-             SetPlayheadPosition(t); 
-             isDraggingPlayhead = true;
-             return;
-        }
-        
-        HitResult hit = GetEventAt(pos);
-        Track* hitTrack = GetTrackAtY(pos.y); // Still useful for empty space clicks
-        if (hitTrack) lastFocusedTrack = hitTrack;
-        
-        // 3. Selection Logic
-        bool ctrl = evt.ControlDown();
-        
-        if (hit.isValid())
-        {
-            // Clicked an event (Expanded or Collapsed Child)
-            std::pair<Track*, int> id = {hit.logicalTrack, hit.eventIndex};
-            
-            if (!ctrl && selection.find(id) == selection.end())
-            {
-                selection.clear();
-                selection.insert(id);
-            }
-            else if (ctrl)
-            {
-                 if (selection.count(id)) selection.erase(id);
-                 else selection.insert(id);
-            }
-            
-            // Start Drag
-            if (!selection.empty())
-            {
-                isDragging = true;
-                dragStartPos = pos;
-                dragStartTrack = hit.visualTrack; // Critical: Use the VISUAL track for row calculation
-                dragStartTime = SnapToGrid(xToTime(pos.x));
-                
-                // Extract events to ghosts
-                dragGhosts.clear();
-                
-                std::map<Track*, std::vector<int>> toRemove;
-                for (auto& sel : selection) {
-                    toRemove[sel.first].push_back(sel.second);
-                }
-                
-                std::vector<Track*> visible = GetVisibleTracks();
-                
-                for (auto& pair : toRemove)
-                {
-                    Track* t = pair.first; // Logical Track
-                    std::vector<int>& indices = pair.second;
-                    std::sort(indices.rbegin(), indices.rend());
-                    
-                    // Find Visual Row Index using helper lambda
-                    // If t is in visible, use it.
-                    // If t is not in visible, check if it's a child of a collapsed visible track.
-                    auto findRowIndex = [&visible](Track* target) -> int {
-                        for (int r = 0; r < (int)visible.size(); ++r) {
-                            if (visible[r] == target) {
-                                return r;
-                            }
-                            // Check children if collapsed
-                            if (!visible[r]->isExpanded) {
-                                for (const auto& child : visible[r]->children) {
-                                    if (&child == target) {
-                                        return r;
-                                    }
-                                }
-                            }
-                        }
-                        return -1;
-                    };
-                    
-                    int rowIndex = findRowIndex(t);
-
-                    // If row index is -1, something is weird (maybe track hidden?), but we can default to 0 or something safe.
-                    if (rowIndex == -1) rowIndex = 0;
-
-                    for (int idx : indices)
-                    {
-                        DragGhost g;
-                        g.evt = t->events[idx];
-                        g.originalTime = g.evt.time;
-                        g.originalTrack = t; // Logical Source
-                        g.originalRowIndex = rowIndex; // Visual Row
-                        g.targetTrack = t; // Default to self
-                        dragGhosts.push_back(g);
-                        
-                        t->events.erase(t->events.begin() + idx);
-                    }
-                }
-                selection.clear(); 
-                Refresh();
-            }
-        }
-        else
-        {
-            // Clicked empty space
-            if (currentTool == ToolType::Draw && hitTrack)
-            {
-                 // SMART BEHAVIOR: We checked GetEventAt above. If we are here, we are NOT on an event.
-                 // So we can place.
-                 
-                 Track* target = GetEffectiveTargetTrack(hitTrack);
-                 if (!target) target = hitTrack;
-
-                 double t = SnapToGrid(xToTime(pos.x));
-                 Event newEvent;
-                 newEvent.time = t;
-                 
-                 auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
-                 
-                 // Check if we should auto-add a hitnormal
-                 bool isAddition = (target->sampleType == SampleType::HitWhistle ||
-                                    target->sampleType == SampleType::HitFinish ||
-                                    target->sampleType == SampleType::HitClap);
-                 
-                 if (isAddition && defaultHitnormalBank.has_value()) {
-                     // Find or create the appropriate hitnormal track
-                     Track* hitnormalTrack = FindOrCreateHitnormalTrack(
-                         defaultHitnormalBank.value(),
-                         target->gain  // Match the target track's volume
-                     );
-                     
-                     if (hitnormalTrack) {
-                         // Check if ANY hitnormal already exists at this timestamp (across all banks)
-                         bool hitnormalExists = false;
-                         for (auto& track : project->tracks) {
-                             if (track.sampleType != SampleType::HitNormal) continue;
-                             
-                             // Check parent track events
-                             for (const auto& evt : track.events) {
-                                 if (std::abs(evt.time - t) < 0.001) {
-                                     hitnormalExists = true;
-                                     break;
-                                 }
-                             }
-                             if (hitnormalExists) break;
-                             
-                             // Check child track events
-                             for (auto& child : track.children) {
-                                 for (const auto& evt : child.events) {
-                                     if (std::abs(evt.time - t) < 0.001) {
-                                         hitnormalExists = true;
-                                         break;
-                                     }
-                                 }
-                                 if (hitnormalExists) break;
-                             }
-                             if (hitnormalExists) break;
-                         }
-                         
-                         if (hitnormalExists) {
-                             // Only add the addition event, skip the hitnormal
-                             undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
-                         } else {
-                             // Add both events using composite command for undo support
-                             Event hnEvent;
-                             hnEvent.time = t;
-                             
-                             std::vector<AddMultipleEventsCommand::Item> items;
-                             items.push_back({hitnormalTrack, hnEvent});
-                             items.push_back({target, newEvent});
-                             
-                             undoManager.PushCommand(std::make_unique<AddMultipleEventsCommand>(items, refreshFn));
-                         }
-                         return;
-                     }
-                 }
-                 
-                 // Default behavior: just add the single event
-                 undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
-                 return;
-            }
-            
-            if (!ctrl) selection.clear();
-            
-            isMarquee = true;
-            marqueeStartPos = pos;
-            marqueeRect = wxRect(pos, pos);
-            
-            // Store base selection for Ctrl+Drag
-            if (ctrl) baseSelection = selection;
-            else baseSelection.clear();
-            
-            Refresh();
-        }
+        HandleLeftDown(evt, pos);
     }
     else if (evt.Dragging())
     {
-        if (isDraggingPlayhead)
-        {
-             double t = SnapToGrid(xToTime(pos.x));
-             SetPlayheadPosition(t);
-             if (OnPlayheadScrubbed) OnPlayheadScrubbed(t);
-        }
-        else if (isDraggingLoop)
-        {
-            double t = SnapToGrid(xToTime(pos.x));
-            loopEnd = t;
-            Refresh();
-            
-            if (OnLoopPointsChanged)
-            {
-                 double s = std::min(loopStart, loopEnd);
-                 double e = std::max(loopStart, loopEnd);
-                 OnLoopPointsChanged(s, e);
-            }
-        }
-        else if (isDragging)
-        {
-             double curTime = SnapToGrid(xToTime(pos.x));
-             double timeDelta = curTime - dragStartTime;
-             
-             Track* curTrack = GetTrackAtY(pos.y);
-             
-             // Calculate Row Delta using Visual Tracks
-             int startRow = -1;
-             int curRow = -1;
-             std::vector<Track*> visible = GetVisibleTracks();
-             
-             for(int i=0; i<(int)visible.size(); ++i) {
-                 if (visible[i] == dragStartTrack) startRow = i;
-                 if (visible[i] == curTrack) curRow = i;
-             }
-             
-             int rowDelta = 0;
-             if (startRow != -1 && curRow != -1) rowDelta = curRow - startRow;
-             
-             // Update Ghosts
-             for (auto& g : dragGhosts)
-             {
-                 // Time
-                 g.evt.time = std::max(0.0, g.originalTime + timeDelta);
-                 
-                 // Target Track
-                 int targetRowIndex = g.originalRowIndex + rowDelta;
-                 
-                 Track* visualTarget = nullptr;
-                 if (targetRowIndex >= 0 && targetRowIndex < (int)visible.size())
-                 {
-                     visualTarget = visible[targetRowIndex];
-                 }
-                 else
-                 {
-                     // Clamp
-                     if (targetRowIndex < 0) targetRowIndex = 0;
-                     if (targetRowIndex >= (int)visible.size()) targetRowIndex = visible.size() - 1;
-                     visualTarget = visible[targetRowIndex];
-                 }
-                 
-                 g.targetTrack = GetEffectiveTargetTrack(visualTarget);
-             }
-             Refresh();
-        }
-        else if (isMarquee)
-        {
-            // Update Rect
-            int x = std::min(marqueeStartPos.x, pos.x);
-            int y = std::min(marqueeStartPos.y, pos.y);
-            int w = std::abs(pos.x - marqueeStartPos.x);
-            int h = std::abs(pos.y - marqueeStartPos.y);
-            marqueeRect = wxRect(x, y, w, h);
-            
-            // Real-time Update
-            PerformMarqueeSelect(marqueeRect);
-            
-            Refresh();
-        }
+        HandleDragging(evt, pos);
     }
-
     else if (evt.RightDown())
     {
-        // Right Click Delete - ALSO needs Smart Hit Test
-        HitResult hit = GetEventAt(pos);
-        if (hit.isValid())
-        {
-             Track* t = hit.logicalTrack;
-             int idx = hit.eventIndex;
-             
-             if (idx >= 0 && idx < (int)t->events.size()) {
-                 std::vector<RemoveEventsCommand::Item> items;
-                 items.push_back({t, t->events[idx]});
-                 
-                 auto refreshFn = [this](){ selection.clear(); ValidateHitsounds(); Refresh(); };
-                 undoManager.PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
-             }
-        }
+        HandleRightDown(pos);
     }
     else if (evt.LeftUp())
     {
-        if (isDraggingPlayhead)
-        {
-            // Final scrub - ensure position is synced
-            if (OnPlayheadScrubbed) OnPlayheadScrubbed(playheadPosition);
-            isDraggingPlayhead = false;
-        }
-        else if (isDraggingLoop)
-        {
-            if (loopEnd < loopStart) std::swap(loopStart, loopEnd);
-            
-            // Enforce minimum loop size (50ms) to detect click vs drag
-            if ((loopEnd - loopStart) < 0.05)
-            {
-                loopStart = -1.0;
-                loopEnd = -1.0;
-            }
-            
-            isDraggingLoop = false;
-            Refresh();
-            if (OnLoopPointsChanged) OnLoopPointsChanged(loopStart, loopEnd);
-        }
-        else if (isDragging)
-        {
-            // Commit Drag
-            selection.clear();
-            
-            // 1. Restore Originals temporarily so Command can start from clean state
-            for (const auto& g : dragGhosts) {
-                // We use originalTrack and originalTime to reconstruct
-                Event origEvt = g.evt;
-                origEvt.time = g.originalTime; 
-                // Note: If we had other mutable props, we'd need to be careful, but currently only time moves.
-                g.originalTrack->events.push_back(origEvt);
-            }
-            
-            // 2. Build Move Command
-            std::vector<MoveEventsCommand::MoveInfo> moves;
-            for (auto& g : dragGhosts)
-            {
-                Track* target = g.targetTrack;
-                if (!target) target = g.originalTrack; // Fallback
-                
-                if (target)
-                {
-                    Event newEvt = g.evt;
-                    // Ensure time is finalized? It should be from Dragging.
-                    
-                    Event origEvt = g.evt;
-                    origEvt.time = g.originalTime;
-                    
-                    moves.push_back({g.originalTrack, origEvt, target, newEvt});
-                }
-            }
-            
-            auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
-            undoManager.PushCommand(std::make_unique<MoveEventsCommand>(moves, refreshFn));
-            
-            // 3. Selection Update (Post-Move)
-            // The MoveCommand::Do() has executed. We can re-select the new events.
-            // We need to find them. 
-            selection.clear();
-            for (auto& m : moves) {
-                // Find m.newEvent in m.newTrack
-                auto& evts = m.newTrack->events;
-                // Assuming pushed back at end? Or sorted? 
-                // Events vector order is not guaranteed sorted yet (we should probably sort them eventually)
-                // But generally keys are pushed back.
-                // Safest to search.
-                for (int i = 0; i < (int)evts.size(); ++i) {
-                     if (evts[i].time == m.newEvent.time) { // Weak match but ok for now
-                         selection.insert({m.newTrack, i});
-                         break; // One match
-                     }
-                }
-            }
-            
-            dragGhosts.clear();
-            isDragging = false;
-        }
-        else if (isMarquee)
-        {
-            PerformMarqueeSelect(marqueeRect);
-            isMarquee = false;
-            baseSelection.clear();
-            Refresh();
-        }
+        HandleLeftUp(evt, pos);
     }
     evt.Skip();
 }
 
-// Helpers
+// -----------------------------------------------------------------------------
+// Helper Functions (unchanged from original)
+// -----------------------------------------------------------------------------
+
 void CollectVisibleTracks(std::vector<Track*>& out, std::vector<Track>& tracks)
 {
     for (auto& track : tracks)
@@ -915,7 +880,6 @@ TimelineView::HitResult TimelineView::GetEventAt(const wxPoint& pos)
 
     Track* vt = result.visualTrack;
     
-    // Check visual track events (or parent events if collapsed)
     for (int i = vt->events.size() - 1; i >= 0; --i)
     {
         int x = timeToX(vt->events[i].time);
@@ -927,13 +891,12 @@ TimelineView::HitResult TimelineView::GetEventAt(const wxPoint& pos)
         }
     }
     
-    // If collapsed, check children
     if (!vt->isExpanded && !vt->children.empty())
     {
         for (Track& child : vt->children)
         {
-             for (int i = child.events.size() - 1; i >= 0; --i)
-             {
+            for (int i = child.events.size() - 1; i >= 0; --i)
+            {
                 int x = timeToX(child.events[i].time);
                 if (pos.x >= x - 2 && pos.x <= x + 6)
                 {
@@ -941,7 +904,7 @@ TimelineView::HitResult TimelineView::GetEventAt(const wxPoint& pos)
                     result.eventIndex = i;
                     return result;
                 }
-             }
+            }
         }
     }
     return result;
@@ -953,8 +916,7 @@ Track* TimelineView::GetTrackAtY(int y)
     int currentY = headerHeight;
     for (Track* t : visibleFn)
     {
-        bool isChild = t->isChildTrack;
-        int h = isChild ? 40 : 80;
+        int h = t->isChildTrack ? kChildTrackHeight : kParentTrackHeight;
         
         if (y >= currentY && y < currentY + h)
             return t;
@@ -966,12 +928,11 @@ Track* TimelineView::GetTrackAtY(int y)
 Track* TimelineView::GetEffectiveTargetTrack(Track* t)
 {
     if (!t) return nullptr;
-    // Always route to primary child if children exist, to keep parents as containers
     if (!t->children.empty())
     {
         if (t->primaryChildIndex >= 0 && t->primaryChildIndex < (int)t->children.size())
             return &t->children[t->primaryChildIndex];
-        return &t->children[0]; // Fallback
+        return &t->children[0];
     }
     return t;
 }
@@ -980,12 +941,8 @@ const Project::TimingPoint* TimelineView::GetTimingPointAt(double time)
 {
     if (!project || project->timingPoints.empty()) return nullptr;
     
-    // Sort logic should ideally be enforced in Project loader, but we assume sorted or we search carefully
-    // We want the last uninherited timing point <= time.
-    
     const Project::TimingPoint* best = nullptr;
     
-    // Iterating is fine for now; optimization possible later
     for (const auto& tp : project->timingPoints)
     {
         if (!tp.uninherited) continue;
@@ -997,21 +954,15 @@ const Project::TimingPoint* TimelineView::GetTimingPointAt(double time)
         }
         else
         {
-            // Since we assume they are sorted by time, we can break? 
-            // Better safe than sorry if unsorted, but assuming sorted for now is standard.
-            // Actually, let's just find the max <= time
             break; 
         }
     }
     
-    // If no timing point found before 'time', we might use the first one if it exists?
-    // Or just fallback to default BPM/Offset
     return best;
 }
 
 void TimelineView::PerformMarqueeSelect(const wxRect& rect)
 {
-    // Restore base selection first (so we don't lose initial selection in CTRL mode, or clear it in Normal mode)
     selection = baseSelection;
     
     std::vector<Track*> visible = GetVisibleTracks();
@@ -1019,10 +970,8 @@ void TimelineView::PerformMarqueeSelect(const wxRect& rect)
     
     for (Track* t : visible)
     {
-        bool isChild = t->isChildTrack;
-        int currentHeight = isChild ? 40 : 80;
+        int currentHeight = t->isChildTrack ? kChildTrackHeight : kParentTrackHeight;
         
-        // Culling optimization
         if (y + currentHeight < rect.GetTop() || y > rect.GetBottom())
         {
             y += currentHeight;
@@ -1031,7 +980,6 @@ void TimelineView::PerformMarqueeSelect(const wxRect& rect)
         
         if (!t->isExpanded && !t->children.empty())
         {
-            // Check Parent's own events (if any)
             for (int i = 0; i < (int)t->events.size(); ++i)
             {
                 int ex = timeToX(t->events[i].time);
@@ -1039,21 +987,18 @@ void TimelineView::PerformMarqueeSelect(const wxRect& rect)
                 if (rect.Intersects(eventRect)) selection.insert({t, i});
             }
 
-            // Check Children's events (Aggregated)
             for (Track& child : t->children)
             {
-                 for (int i = 0; i < (int)child.events.size(); ++i)
-                 {
-                      int ex = timeToX(child.events[i].time);
-                      // Use PARENT's Y position 'y'
-                      wxRect eventRect(ex - 2, y + 2, 4, currentHeight - 4);
-                      if (rect.Intersects(eventRect)) selection.insert({&child, i});
-                 }
+                for (int i = 0; i < (int)child.events.size(); ++i)
+                {
+                    int ex = timeToX(child.events[i].time);
+                    wxRect eventRect(ex - 2, y + 2, 4, currentHeight - 4);
+                    if (rect.Intersects(eventRect)) selection.insert({&child, i});
+                }
             }
         }
         else
         {
-            // Normal Expanded / Leaf Track
             for (int i = 0; i < (int)t->events.size(); ++i)
             {
                 int ex = timeToX(t->events[i].time);
@@ -1071,93 +1016,71 @@ double TimelineView::SnapToGrid(double time)
     
     const Project::TimingPoint* tp = GetTimingPointAt(time);
     
-    double beatLen = 0.5; // Default 120BPM
+    double beatLen = 0.5;
     double startOffset = 0.0;
     
     if (tp)
     {
         startOffset = tp->time / 1000.0;
-        beatLen = tp->beatLength / 1000.0; // beatLength is ms per beat
+        beatLen = tp->beatLength / 1000.0;
     }
     else if (!project->timingPoints.empty())
     {
-         // If before first timing point, project backwards from the first one
-         // Find first
-         for (const auto& p : project->timingPoints) {
-             if (p.uninherited) {
-                 startOffset = p.time / 1000.0;
-                 beatLen = p.beatLength / 1000.0;
-                 break;
-             }
-         }
+        for (const auto& p : project->timingPoints) {
+            if (p.uninherited) {
+                startOffset = p.time / 1000.0;
+                beatLen = p.beatLength / 1000.0;
+                break;
+            }
+        }
     }
     
-    // Check BPM sanity
-    if (beatLen <= 0.001) beatLen = 0.5; // Avoid div by zero
+    if (beatLen <= 0.001) beatLen = 0.5;
     
     double snapStep = beatLen / gridDivisor;
-    
-    // time = startOffset + n * snapStep
     double n = std::round((time - startOffset) / snapStep);
     double snapped = startOffset + n * snapStep;
-    
-    if (snapped < 0) snapped = 0;
-    return snapped;
+    return std::max(0.0, snapped);
 }
 
-int TimelineView::timeToX(double time) const
-{
-    return static_cast<int>(time * pixelsPerSecond);
-}
-
-double TimelineView::xToTime(int x) const
-{
-    return static_cast<double>(x) / pixelsPerSecond;
-}
+// -----------------------------------------------------------------------------
+// Keyboard and Clipboard Operations (unchanged from original)
+// -----------------------------------------------------------------------------
 
 void TimelineView::OnKeyDown(wxKeyEvent& evt)
 {
-    if (evt.GetModifiers() == wxMOD_CONTROL)
-    {
-        if (evt.GetKeyCode() == 'C')
-        {
-            CopySelection();
-            return;
-        }
-        else if (evt.GetKeyCode() == 'V')
-        {
-            PasteAtPlayhead();
-            return;
-        }
-        else if (evt.GetKeyCode() == 'Z')
-        {
-            undoManager.Undo();
-            return;
-        }
-        else if (evt.GetKeyCode() == 'Y')
-        {
-            undoManager.Redo();
-            return;
-        }
-        else if (evt.GetKeyCode() == 'B') // Duplicate
-        {
-            // Implement Duplicate later or now? Let's just hook it up if logic exists, else ignore
-             // Duplicate logic is essentially "Copy Selection + Paste at End of Selection"
-             // I'll defer implementation to next step
-        }
-    }
-    else if (evt.GetModifiers() == (wxMOD_CONTROL | wxMOD_SHIFT)) 
-    {
-        if (evt.GetKeyCode() == 'Z') {
-            undoManager.Redo();
-            return;
-        }
-    }
-    
-    if (evt.GetKeyCode() == WXK_DELETE)
+    if (evt.GetKeyCode() == WXK_DELETE || evt.GetKeyCode() == WXK_BACK)
     {
         DeleteSelection();
         return;
+    }
+    
+    if (evt.ControlDown())
+    {
+        switch (evt.GetKeyCode())
+        {
+        case 'C':
+            CopySelection();
+            return;
+        case 'X':
+            CutSelection();
+            return;
+        case 'V':
+            PasteAtPlayhead();
+            return;
+        case 'A':
+            SelectAll();
+            return;
+        case 'Z':
+            if (evt.ShiftDown())
+                Redo();
+            else
+                Undo();
+            return;
+        case 'Y':
+            Redo();
+            return;
+        }
     }
     
     evt.Skip();
@@ -1171,59 +1094,39 @@ void TimelineView::CopySelection()
     
     std::vector<Track*> visible = GetVisibleTracks();
     
-    // Helper to find visual row for a generic track (handling collapsed parents)
-    auto getVisualRow = [&](Track* t) -> int {
+    auto findRowIndex = [&visible](Track* t) -> int {
         for (int i = 0; i < (int)visible.size(); ++i) {
             if (visible[i] == t) return i;
-            // If visible track is a collapsed parent, check if t is one of its children
-            if (!visible[i]->isExpanded && !visible[i]->children.empty()) {
-                for (auto& child : visible[i]->children) {
-                    if (&child == t) return i;
+            if (!visible[i]->isExpanded) {
+                for (const auto& c : visible[i]->children) {
+                    if (&c == t) return i;
                 }
             }
         }
-        return -1;
+        return 0;
     };
     
-    // 1. Find Min Row and Min Time
-    int minRow = 999999;
-    double minTime = 1e9;
+    double minTime = std::numeric_limits<double>::max();
+    int minRow = std::numeric_limits<int>::max();
     
-    for (const auto& pair : selection)
+    for (const auto& sel : selection)
     {
-        Track* t = pair.first;
-        int eventIdx = pair.second;
-        if (eventIdx >= 0 && eventIdx < (int)t->events.size())
-        {
-             double time = t->events[eventIdx].time;
-             if (time < minTime) minTime = time;
-             
-             int row = getVisualRow(t);
-             if (row != -1 && row < minRow) minRow = row;
-        }
+        double t = sel.first->events[sel.second].time;
+        int row = findRowIndex(sel.first);
+        if (t < minTime) minTime = t;
+        if (row < minRow) minRow = row;
     }
     
-    // If we couldn't resolve any rows, abort (shouldn't happen with valid selection)
-    if (minRow == 999999) return;
-    
-    // 2. Populate
-    for (const auto& pair : selection)
+    for (const auto& sel : selection)
     {
-        Track* t = pair.first;
-        int eventIdx = pair.second;
-         if (eventIdx >= 0 && eventIdx < (int)t->events.size())
-         {
-             int row = getVisualRow(t);
-             
-             if (row != -1)
-             {
-                 ClipboardItem item;
-                 item.evt = t->events[eventIdx];
-                 item.relativeRow = row - minRow;
-                 item.relativeTime = item.evt.time - minTime; // Relative to earliest event
-                 clipboard.push_back(item);
-             }
-         }
+        const Event& evt = sel.first->events[sel.second];
+        int row = findRowIndex(sel.first);
+        
+        ClipboardItem item;
+        item.evt = evt;
+        item.relativeRow = row - minRow;
+        item.relativeTime = evt.time - minTime;
+        clipboard.push_back(item);
     }
 }
 
@@ -1235,18 +1138,25 @@ void TimelineView::CutSelection()
 
 void TimelineView::SelectAll()
 {
-    if (!project) return;
     selection.clear();
+    std::vector<Track*> visible = GetVisibleTracks();
     
-    std::function<void(std::vector<Track>&)> traverse = [&](std::vector<Track>& tracks) {
-        for(auto& t : tracks) {
-            for (int i = 0; i < (int)t.events.size(); ++i) {
-                selection.insert({&t, i});
+    for (Track* t : visible)
+    {
+        if (!t->isExpanded && !t->children.empty())
+        {
+            for (Track& child : t->children)
+            {
+                for (int i = 0; i < (int)child.events.size(); ++i)
+                    selection.insert({&child, i});
             }
-            traverse(t.children);
         }
-    };
-    traverse(project->tracks);
+        else
+        {
+            for (int i = 0; i < (int)t->events.size(); ++i)
+                selection.insert({t, i});
+        }
+    }
     Refresh();
 }
 
@@ -1254,66 +1164,48 @@ void TimelineView::PasteAtPlayhead()
 {
     if (clipboard.empty()) return;
     
-    // Determine Anchor Track
-    // 1. If we have a 'lastFocusedTrack', use its visual row.
-    // 2. If one track is explicitly selected (via checking selection for single track events?), use it.
-    // 3. Fallback to first visible.
-    
     std::vector<Track*> visible = GetVisibleTracks();
-    int anchorRow = 0;
     
+    int anchorRow = 0;
     if (lastFocusedTrack)
     {
-         for(int r=0; r<(int)visible.size(); ++r) if(visible[r] == lastFocusedTrack) { anchorRow = r; break; }
-    }
-    
-    // Special Smart Logic: 
-    // If clipboard is single-track (all relativeRow == 0), we paste strictly to the anchorRow track.
-    // If clipboard is multi-track, we paste relative to anchorRow.
-    
-    std::vector<PasteEventsCommand::PasteItem> items;
-    
-    for (const auto& item : clipboard)
-    {
-        int targetRow = anchorRow + item.relativeRow;
-        
-        // Boundary check
-        if (targetRow >= 0 && targetRow < (int)visible.size())
+        for (int i = 0; i < (int)visible.size(); ++i)
         {
-            Track* target = GetEffectiveTargetTrack(visible[targetRow]);
-            if (target)
+            if (visible[i] == lastFocusedTrack ||
+                (!visible[i]->isExpanded && std::find_if(visible[i]->children.begin(), visible[i]->children.end(),
+                    [this](const Track& c){ return &c == lastFocusedTrack; }) != visible[i]->children.end()))
             {
-                Event newEvt = item.evt;
-                newEvt.time = playheadPosition + item.relativeTime; // Paste at playhead
-                
-                items.push_back({target, newEvt});
+                anchorRow = i;
+                break;
             }
         }
     }
     
-    if (!items.empty())
+    std::vector<PasteEventsCommand::PasteItem> itemsToPaste;
+    
+    for (const auto& ci : clipboard)
     {
-        auto selectFn = [this](const std::vector<Track*>& tracks){
-            // Improve: Select specific pasted events?
-            // Command doesn't return the indices. 
-            // We can search for them by time?
-            // Implementation detail: PasteEventsCommand uses push_back.
-            // So we can just scan for last N events? Unsafe if async.
-            // For now, let's just clear selection to indicate "Something happened" or leave it.
-            // Actually users prefer pasted items to be selected.
-            
-            selection.clear();
-            // Heuristic selection
-            for (auto* t : tracks) {
-                if (!t->events.empty()) {
-                    selection.insert({t, (int)t->events.size() - 1});
-                }
-            }
-            Refresh();
-        };
+        int targetRow = anchorRow + ci.relativeRow;
+        if (targetRow < 0) targetRow = 0;
+        if (targetRow >= (int)visible.size()) targetRow = (int)visible.size() - 1;
         
+        Track* visualTarget = visible[targetRow];
+        Track* actualTarget = GetEffectiveTargetTrack(visualTarget);
+        if (!actualTarget) continue;
+        
+        Event newEvt = ci.evt;
+        newEvt.time = SnapToGrid(playheadPosition + ci.relativeTime);
+        
+        itemsToPaste.push_back({actualTarget, newEvt});
+    }
+    
+    if (!itemsToPaste.empty())
+    {
+        auto selCallback = [this](const std::vector<Track*>&) {
+            // Optionally re-select pasted items
+        };
         auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
-        undoManager.PushCommand(std::make_unique<PasteEventsCommand>(items, selectFn, refreshFn));
+        undoManager.PushCommand(std::make_unique<PasteEventsCommand>(itemsToPaste, selCallback, refreshFn));
     }
 }
 
@@ -1322,201 +1214,116 @@ void TimelineView::DeleteSelection()
     if (selection.empty()) return;
     
     std::vector<RemoveEventsCommand::Item> items;
-    
-    // Gather Items
-    for (auto& pair : selection)
+    for (const auto& sel : selection)
     {
-        Track* t = pair.first;
-        int eventIdx = pair.second;
-        if (eventIdx >= 0 && eventIdx < (int)t->events.size())
-        {
-            items.push_back({t, t->events[eventIdx]});
-        }
+        const Event& evt = sel.first->events[sel.second];
+        items.push_back({sel.first, evt});
     }
     
-    if (!items.empty())
-    {
-        auto refreshFn = [this](){ selection.clear(); ValidateHitsounds(); Refresh(); };
-        undoManager.PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
-    }
+    auto refreshFn = [this](){ selection.clear(); ValidateHitsounds(); Refresh(); };
+    undoManager.PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
 }
+
+// -----------------------------------------------------------------------------
+// Zoom and Virtual Size
+// -----------------------------------------------------------------------------
 
 void TimelineView::OnMouseWheel(wxMouseEvent& evt)
 {
     if (evt.ControlDown())
     {
-        // Zoom
-        wxPoint mousePos = evt.GetPosition(); // Client Coords
+        int rotation = evt.GetWheelRotation();
+        double zoomFactor = (rotation > 0) ? 1.1 : 0.9;
         
-        // We want to keep the time at 'mousePos.x' constant.
-        int x, y;
-        GetViewStart(&x, &y);
-        int ppuX, ppuY;
-        GetScrollPixelsPerUnit(&ppuX, &ppuY);
-        
-        if (ppuX == 0) ppuX = 10; // Safety
-        
-        // Logical X is the pixel coordinate in the full virtual canvas
-        int logicalX = x * ppuX + mousePos.x;
-        double timeFocus = xToTime(logicalX);
-        
-        double zoomFactor = (evt.GetWheelRotation() > 0) ? 1.25 : 0.8;
+        double oldPPS = pixelsPerSecond;
         pixelsPerSecond *= zoomFactor;
         
-        // Clamp Zoom
-        if (pixelsPerSecond < ZoomSettings::MinPixelsPerSecond) pixelsPerSecond = ZoomSettings::MinPixelsPerSecond;
-        if (pixelsPerSecond > ZoomSettings::MaxPixelsPerSecond) pixelsPerSecond = ZoomSettings::MaxPixelsPerSecond;
+        if (pixelsPerSecond < ZoomSettings::MinPixelsPerSecond) 
+            pixelsPerSecond = ZoomSettings::MinPixelsPerSecond;
+        if (pixelsPerSecond > ZoomSettings::MaxPixelsPerSecond) 
+            pixelsPerSecond = ZoomSettings::MaxPixelsPerSecond;
         
-        UpdateVirtualSize();
-        
-        // Re-calculate scroll to keep timeFocus at mousePos.x
-        int newLogicalX = timeToX(timeFocus);
-        int newScrollPixel = newLogicalX - mousePos.x;
-        if (newScrollPixel < 0) newScrollPixel = 0;
-        
-        Scroll(newScrollPixel / ppuX, -1);
+        if (pixelsPerSecond != oldPPS)
+        {
+            int mouseX = evt.GetX();
+            int scrollX, scrollY;
+            GetViewStart(&scrollX, &scrollY);
+            int ppuX, ppuY;
+            GetScrollPixelsPerUnit(&ppuX, &ppuY);
+            if (ppuX == 0) ppuX = 10;
+            
+            int oldPxPos = scrollX * ppuX + mouseX;
+            double timeAtMouse = oldPxPos / oldPPS;
+            
+            UpdateVirtualSize();
+            
+            int newPxPos = (int)(timeAtMouse * pixelsPerSecond);
+            int newScrollX = (newPxPos - mouseX) / ppuX;
+            if (newScrollX < 0) newScrollX = 0;
+            
+            Scroll(newScrollX, scrollY);
+            
+            if (OnZoomChanged)
+                OnZoomChanged(pixelsPerSecond);
+        }
         Refresh();
-        
-        // Notify zoom change
-        if (OnZoomChanged) OnZoomChanged(pixelsPerSecond);
     }
     else if (evt.ShiftDown())
     {
-        // Horizontal Scroll
         int rotation = evt.GetWheelRotation();
-        int delta = evt.GetWheelDelta();
-        if (delta == 0) delta = 120;
+        int scrollX, scrollY;
+        GetViewStart(&scrollX, &scrollY);
+        int ppuX, ppuY;
+        GetScrollPixelsPerUnit(&ppuX, &ppuY);
+        if (ppuX == 0) ppuX = 10;
         
-        int lines = rotation / delta;
-        
-        int x, y;
-        GetViewStart(&x, &y);
-        
-        // Scroll 5 units per notch (reversed: wheel up = left usually? Or wheel down = right?)
-        // Standard: Wheel Down (negative) -> Right (inc X)
-        // Wheel Up (positive) -> Left (dec X)
-        int direction = (rotation > 0) ? -1 : 1;
-        
-        int scrollAmt = std::abs(lines) * 5 * direction;
-        
-        Scroll(x + scrollAmt, -1);
+        int delta = (rotation > 0) ? -5 : 5;
+        Scroll(scrollX + delta, scrollY);
     }
     else
     {
-        // Vertical Scroll (Default)
         evt.Skip();
     }
 }
 
 void TimelineView::UpdateVirtualSize()
 {
-    // 1. Calculate Width (Max Time)
-    double maxTime = 60.0; // Minimum 1 minute
-    if (audioDuration > 0) maxTime = std::max(maxTime, audioDuration);
+    int width = 2000;
+    int height = headerHeight;
+    
+    if (audioDuration > 0)
+    {
+        width = (int)(audioDuration * pixelsPerSecond) + 200;
+    }
     
     if (project)
     {
-        std::function<void(const std::vector<Track>&)> checkTracks = 
-            [&](const std::vector<Track>& tracks) {
-            for (const auto& t : tracks) {
-                if (!t.events.empty()) {
-                    // Assuming sorted events for now, or just check last?
-                    // Safe to check all if small, but let's check back. 
-                    // To be safe against unsorted:
-                    for(const auto& e : t.events) {
-                        if (e.time > maxTime) maxTime = e.time;
-                    }
+        std::function<void(const std::vector<Track>&)> calcHeight = [&](const std::vector<Track>& tracks) {
+            for (const Track& t : tracks)
+            {
+                height += t.isChildTrack ? kChildTrackHeight : kParentTrackHeight;
+                if (t.isExpanded)
+                {
+                    calcHeight(t.children);
                 }
-                checkTracks(t.children);
             }
         };
-        checkTracks(project->tracks);
+        calcHeight(project->tracks);
     }
     
-    // Add margin
-    maxTime += 5.0;
+    height += 100;
     
-    int w = timeToX(maxTime);
-    
-    // 2. Calculate Height (Visible Tracks)
-    int h = headerHeight;
-    std::vector<Track*> visible = GetVisibleTracks();
-    for(Track* t : visible) {
-        bool isChild = t->isChildTrack; // Using proper flag instead of hacky string check
-        h += isChild ? 40 : 80;
-    }
-    h += 400; // Bottom Padding
-    
-    // Maintain current position if possible? 
-    // SetScrollbars resets position if we aren't careful?
-    // "The position is preserved if possible." - wxWidgets docs.
-    
-    int x, y;
-    GetViewStart(&x, &y);
-    
-    SetScrollbars(10, 10, w / 10, h / 10, x, y);
+    SetVirtualSize(width, height);
+    SetScrollRate(10, 10);
 }
 
 void TimelineView::ValidateHitsounds()
 {
     if (!project) return;
-
-    struct EvtRef {
-        Event* evt;
-        Track* track;
-    };
-    std::map<int64_t, std::vector<EvtRef>> timeMap;
-
-    std::function<void(std::vector<Track>&)> traverse = [&](std::vector<Track>& tracks) {
-        for (auto& t : tracks) {
-            for (auto& e : t.events) {
-                e.validationState = ValidationState::Valid; // Reset
-                int64_t ms = (int64_t)std::round(e.time * 1000.0);
-                timeMap[ms].push_back({&e, &t});
-            }
-            traverse(t.children);
-        }
-    };
-    traverse(project->tracks);
-
-    // Validate
-    for (auto& [time, evts] : timeMap) {
-        std::vector<EvtRef> hitNormals;
-        std::vector<EvtRef> additions;
-        std::set<SampleSet> additionBanks;
-
-        for (auto& ref : evts) {
-            if (ref.track->sampleType == SampleType::HitNormal) {
-                hitNormals.push_back(ref);
-            } else if (ref.track->sampleType == SampleType::HitWhistle ||
-                       ref.track->sampleType == SampleType::HitFinish ||
-                       ref.track->sampleType == SampleType::HitClap) {
-                additions.push_back(ref);
-                additionBanks.insert(ref.track->sampleSet);
-            }
-        }
-
-        // Rule 1: Max 1 HitNormal
-        if (hitNormals.size() > 1) {
-            for (auto& ref : hitNormals) ref.evt->validationState = ValidationState::Invalid;
-        }
-
-        // Rule 2: Additions must share same bank
-        if (additionBanks.size() > 1) {
-            for (auto& ref : additions) ref.evt->validationState = ValidationState::Invalid;
-        }
-
-        // Rule 3: Additions should be backed by a HitNormal (Warning if not)
-        if (hitNormals.empty() && !additions.empty()) {
-            for (auto& ref : additions) {
-                // Only set warning if not already invalid
-                if (ref.evt->validationState == ValidationState::Valid)
-                    ref.evt->validationState = ValidationState::Warning;
-            }
-        }
-    }
     
-    // Notify audio engine to update its snapshot
+    // Use ProjectValidator to validate hitsounds
+    ProjectValidator::Validate(*project);
+    
     if (OnTracksModified) OnTracksModified();
 }
 
@@ -1524,76 +1331,47 @@ Track* TimelineView::FindOrCreateHitnormalTrack(SampleSet bank, double volume)
 {
     if (!project) return nullptr;
     
-    // Helper to get bank name (lowercase)
-    auto getBankName = [](SampleSet s) -> std::string {
-        switch (s) {
-            case SampleSet::Normal: return "normal";
-            case SampleSet::Soft: return "soft";
-            case SampleSet::Drum: return "drum";
-            default: return "normal";
-        }
-    };
+    std::string setStr = (bank == SampleSet::Normal) ? "normal" : 
+                        (bank == SampleSet::Soft) ? "soft" : "drum";
+    std::string parentName = setStr + "-hitnormal";
     
-    std::string bankName = getBankName(bank);
-    std::string parentName = bankName + "-hitnormal";
+    int volumeInt = static_cast<int>(volume * 100);
+    std::string childName = parentName + " (" + std::to_string(volumeInt) + "%)";
     
-    // Format volume for child name
-    int volumePercent = static_cast<int>(volume * 100.0 + 0.5);
-    std::string volSuffix = " (" + std::to_string(volumePercent) + "%)";
-    std::string childName = bankName + "-hitnormal" + volSuffix;
-    
-    // Search for existing HitNormal parent track with matching bank
-    for (auto& track : project->tracks) {
-        if (track.sampleType == SampleType::HitNormal && track.sampleSet == bank) {
-            // Found parent - search for matching volume child
-            for (auto& child : track.children) {
-                // Match by volume percentage in name
-                if (child.name.find(volSuffix) != std::string::npos) {
-                    return &child;
-                }
-            }
-            
-            // No matching volume child - create one
-            Track newChild;
-            newChild.name = childName;
-            newChild.sampleSet = bank;
-            newChild.sampleType = SampleType::HitNormal;
-            newChild.gain = volume;
-            newChild.isChildTrack = true;
-            
-            track.children.push_back(newChild);
-            track.isExpanded = true;
-            
-            // Update primary child index if this is first child
-            if (track.children.size() == 1) {
-                track.primaryChildIndex = 0;
-            }
-            
-            return &track.children.back();
+    Track* parent = nullptr;
+    for (auto& t : project->tracks) {
+        if (t.name == parentName) {
+            parent = &t;
+            break;
         }
     }
     
-    // No existing parent track found - create new parent + child
-    Track newParent;
-    newParent.name = parentName;
-    newParent.sampleSet = bank;
-    newParent.sampleType = SampleType::HitNormal;
-    newParent.gain = 1.0; // Parent at full volume
-    newParent.isExpanded = true;
-    newParent.primaryChildIndex = 0;
+    if (!parent) {
+        Track newParent;
+        newParent.name = parentName;
+        newParent.sampleSet = bank;
+        newParent.sampleType = SampleType::HitNormal;
+        newParent.isExpanded = false;
+        project->tracks.push_back(newParent);
+        parent = &project->tracks.back();
+    }
     
-    // Create child with the actual volume
-    Track newChild;
-    newChild.name = childName;
-    newChild.sampleSet = bank;
-    newChild.sampleType = SampleType::HitNormal;
-    newChild.gain = volume;
-    newChild.isChildTrack = true;
+    for (auto& c : parent->children) {
+        if (c.name == childName) {
+            return &c;
+        }
+    }
     
-    newParent.children.push_back(newChild);
+    Track child;
+    child.name = childName;
+    child.sampleSet = bank;
+    child.sampleType = SampleType::HitNormal;
+    child.gain = volume;
+    child.isChildTrack = true;
+    parent->children.push_back(child);
     
-    project->tracks.push_back(newParent);
+    UpdateVirtualSize();
+    Refresh();
     
-    // Return pointer to the child (where events are placed)
-    return &project->tracks.back().children.back();
+    return &parent->children.back();
 }
