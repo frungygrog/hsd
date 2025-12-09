@@ -1,6 +1,7 @@
 #include "TimelineView.h"
 #include "../model/Commands.h"
 #include "../model/ProjectValidator.h"
+#include "../Constants.h"
 #include <wx/dcbuffer.h>
 #include <wx/graphics.h>
 #include <cmath>
@@ -14,11 +15,7 @@ wxBEGIN_EVENT_TABLE(TimelineView, wxScrolledWindow)
     EVT_KEY_DOWN(TimelineView::OnKeyDown)
 wxEND_EVENT_TABLE()
 
-// Layout constants
-namespace {
-    constexpr int kParentTrackHeight = 80;
-    constexpr int kChildTrackHeight = 40;
-}
+// Use constants from Constants.h via TrackLayout namespace
 
 // -----------------------------------------------------------------------------
 // Constructor and Basic Methods
@@ -134,7 +131,7 @@ void TimelineView::DrawTrackBackgrounds(wxDC& dc, const wxSize& size, const std:
     for (Track* track : visibleTracks)
     {
         bool isChild = track->isChildTrack;
-        int currentHeight = isChild ? kChildTrackHeight : kParentTrackHeight;
+        int currentHeight = isChild ? TrackLayout::ChildTrackHeight : TrackLayout::ParentTrackHeight;
         bool isParentExpanded = !track->children.empty() && track->isExpanded;
 
         dc.SetPen(*wxTRANSPARENT_PEN);
@@ -156,7 +153,7 @@ void TimelineView::DrawGrid(wxDC& dc, const wxSize& size, double visStart, doubl
     dc.SetPen(wxPen(wxColour(60, 60, 60)));
     for (Track* track : visible)
     {
-        int h = track->isChildTrack ? kChildTrackHeight : kParentTrackHeight;
+        int h = track->isChildTrack ? TrackLayout::ChildTrackHeight : TrackLayout::ParentTrackHeight;
         dc.DrawLine(0, gy + h, size.x, gy + h);
         gy += h;
     }
@@ -245,7 +242,7 @@ void TimelineView::DrawEvents(wxDC& dc, const std::vector<Track*>& visibleTracks
     for (Track* track : visibleTracks)
     {
         bool isChild = track->isChildTrack;
-        int currentHeight = isChild ? kChildTrackHeight : kParentTrackHeight;
+        int currentHeight = isChild ? TrackLayout::ChildTrackHeight : TrackLayout::ParentTrackHeight;
         bool isParentExpanded = !track->children.empty() && track->isExpanded;
         
         if (!isParentExpanded)
@@ -259,7 +256,8 @@ void TimelineView::DrawEvents(wxDC& dc, const std::vector<Track*>& visibleTracks
                     if (event.time < visStart - 0.5 || event.time > visEnd + 0.5) continue;
                     int x = timeToX(event.time);
                     
-                    bool isSelected = selection.count({srcTrack, i});
+                    // Check selection using track ID and event ID
+                    bool isSelected = selection.count({srcTrack->id, event.id}) > 0;
                     
                     if (isSelected)
                     {
@@ -343,16 +341,17 @@ void TimelineView::DrawDragGhosts(wxDC& dc, const std::vector<Track*>& visible)
     
     for (Track* t : visible)
     {
-        int currentHeight = t->isChildTrack ? kChildTrackHeight : kParentTrackHeight;
+        int currentHeight = t->isChildTrack ? TrackLayout::ChildTrackHeight : TrackLayout::ParentTrackHeight;
         
         for (const auto& ghost : dragGhosts)
         {
-            Track* target = ghost.targetTrack ? ghost.targetTrack : ghost.originalTrack;
-            bool match = (target == t);
+            // Resolve target track from ID
+            uint64_t targetId = ghost.targetTrackId != 0 ? ghost.targetTrackId : ghost.originalTrackId;
+            bool match = (t->id == targetId);
             if (!match && !t->isExpanded && !t->children.empty())
             {
                 for (auto& c : t->children)
-                    if (&c == target) { match = true; break; }
+                    if (c.id == targetId) { match = true; break; }
             }
             
             if (match)
@@ -501,7 +500,7 @@ void TimelineView::PlaceEvent(Track* target, double time)
             }
             
             if (hitnormalExists) {
-                undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
+                controller.GetUndoManager().PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
             } else {
                 Event hnEvent;
                 hnEvent.time = time;
@@ -510,13 +509,13 @@ void TimelineView::PlaceEvent(Track* target, double time)
                 items.push_back({hitnormalTrack, hnEvent});
                 items.push_back({target, newEvent});
                 
-                undoManager.PushCommand(std::make_unique<AddMultipleEventsCommand>(items, refreshFn));
+                controller.GetUndoManager().PushCommand(std::make_unique<AddMultipleEventsCommand>(items, refreshFn));
             }
             return;
         }
     }
     
-    undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
+    controller.GetUndoManager().PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
 }
 
 // -----------------------------------------------------------------------------
@@ -553,70 +552,83 @@ void TimelineView::HandleLeftDown(wxMouseEvent& evt, const wxPoint& pos)
     
     HitResult hit = GetEventAt(pos);
     Track* hitTrack = GetTrackAtY(pos.y);
-    if (hitTrack) lastFocusedTrack = hitTrack;
+    if (hitTrack) controller.SetLastFocusedTrack(hitTrack->id);
     
     bool ctrl = evt.ControlDown();
     
     if (hit.isValid())
     {
-        std::pair<Track*, int> id = {hit.logicalTrack, hit.eventIndex};
+        // Create ID-based selection key
+        std::pair<uint64_t, uint64_t> selId = {hit.logicalTrack->id, hit.logicalTrack->events[hit.eventIndex].id};
         
-        if (!ctrl && selection.find(id) == selection.end())
+        if (!ctrl && selection.find(selId) == selection.end())
         {
             selection.clear();
-            selection.insert(id);
+            selection.insert(selId);
         }
         else if (ctrl)
         {
-            if (selection.count(id)) selection.erase(id);
-            else selection.insert(id);
+            if (selection.count(selId)) selection.erase(selId);
+            else selection.insert(selId);
         }
         
         if (!selection.empty())
         {
             isDragging = true;
             dragStartPos = pos;
-            dragStartTrack = hit.visualTrack;
+            dragStartTrackId = hit.visualTrack ? hit.visualTrack->id : 0;
             dragStartTime = SnapToGrid(xToTime(pos.x));
             
             dragGhosts.clear();
             
-            std::map<Track*, std::vector<int>> toRemove;
+            // Group selected events by track ID, find events by their IDs
+            std::map<uint64_t, std::vector<uint64_t>> toRemoveByTrack;
             for (auto& sel : selection) {
-                toRemove[sel.first].push_back(sel.second);
+                toRemoveByTrack[sel.first].push_back(sel.second);
             }
             
             std::vector<Track*> visible = GetVisibleTracks();
             
-            for (auto& pair : toRemove)
-            {
-                Track* t = pair.first;
-                std::vector<int>& indices = pair.second;
-                std::sort(indices.rbegin(), indices.rend());
-                
-                auto findRowIndex = [&visible](Track* target) -> int {
-                    for (int r = 0; r < (int)visible.size(); ++r) {
-                        if (visible[r] == target) return r;
-                        if (!visible[r]->isExpanded) {
-                            for (const auto& child : visible[r]->children) {
-                                if (&child == target) return r;
-                            }
+            auto findRowIndex = [&visible](Track* target) -> int {
+                for (int r = 0; r < (int)visible.size(); ++r) {
+                    if (visible[r] == target) return r;
+                    if (!visible[r]->isExpanded) {
+                        for (const auto& child : visible[r]->children) {
+                            if (&child == target) return r;
                         }
                     }
-                    return -1;
-                };
+                }
+                return -1;
+            };
+            
+            for (auto& pair : toRemoveByTrack)
+            {
+                Track* t = FindTrackById(pair.first);
+                if (!t) continue;
                 
                 int rowIndex = findRowIndex(t);
                 if (rowIndex == -1) rowIndex = 0;
+                
+                // Find event indices from IDs and sort in reverse
+                std::vector<int> indices;
+                for (uint64_t eventId : pair.second) {
+                    for (int i = 0; i < (int)t->events.size(); ++i) {
+                        if (t->events[i].id == eventId) {
+                            indices.push_back(i);
+                            break;
+                        }
+                    }
+                }
+                std::sort(indices.rbegin(), indices.rend());
 
                 for (int idx : indices)
                 {
                     DragGhost g;
                     g.evt = t->events[idx];
                     g.originalTime = g.evt.time;
-                    g.originalTrack = t;
+                    g.originalTrackId = t->id;
                     g.originalRowIndex = rowIndex;
-                    g.targetTrack = t;
+                    g.targetTrackId = t->id;
                     dragGhosts.push_back(g);
                     
                     t->events.erase(t->events.begin() + idx);
@@ -678,13 +690,14 @@ void TimelineView::HandleDragging(wxMouseEvent& evt, const wxPoint& pos)
         double timeDelta = curTime - dragStartTime;
         
         Track* curTrack = GetTrackAtY(pos.y);
+        Track* startTrack = FindTrackById(dragStartTrackId);
         
         int startRow = -1;
         int curRow = -1;
         std::vector<Track*> visible = GetVisibleTracks();
         
         for (int i = 0; i < (int)visible.size(); ++i) {
-            if (visible[i] == dragStartTrack) startRow = i;
+            if (visible[i] == startTrack) startRow = i;
             if (visible[i] == curTrack) curRow = i;
         }
         
@@ -709,7 +722,8 @@ void TimelineView::HandleDragging(wxMouseEvent& evt, const wxPoint& pos)
                 visualTarget = visible[targetRowIndex];
             }
             
-            g.targetTrack = GetEffectiveTargetTrack(visualTarget);
+            Track* effectiveTarget = GetEffectiveTargetTrack(visualTarget);
+            g.targetTrackId = effectiveTarget ? effectiveTarget->id : 0;
         }
         Refresh();
     }
@@ -751,40 +765,42 @@ void TimelineView::HandleLeftUp(wxMouseEvent& evt, const wxPoint& pos)
     {
         selection.clear();
         
-        // Restore originals temporarily
+        // Restore originals temporarily using ID lookup
         for (const auto& g : dragGhosts) {
+            Track* origTrack = FindTrackById(g.originalTrackId);
+            if (!origTrack) continue;
+            
             Event origEvt = g.evt;
             origEvt.time = g.originalTime; 
-            g.originalTrack->events.push_back(origEvt);
+            origTrack->events.push_back(origEvt);
         }
         
         // Build Move Command
         std::vector<MoveEventsCommand::MoveInfo> moves;
         for (auto& g : dragGhosts)
         {
-            Track* target = g.targetTrack;
-            if (!target) target = g.originalTrack;
+            Track* origTrack = FindTrackById(g.originalTrackId);
+            Track* target = FindTrackById(g.targetTrackId != 0 ? g.targetTrackId : g.originalTrackId);
+            if (!origTrack) continue;
+            if (!target) target = origTrack;
             
-            if (target)
-            {
-                Event newEvt = g.evt;
-                Event origEvt = g.evt;
-                origEvt.time = g.originalTime;
-                
-                moves.push_back({g.originalTrack, origEvt, target, newEvt});
-            }
+            Event newEvt = g.evt;
+            Event origEvt = g.evt;
+            origEvt.time = g.originalTime;
+            
+            moves.push_back({origTrack, origEvt, target, newEvt});
         }
         
         auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
-        undoManager.PushCommand(std::make_unique<MoveEventsCommand>(moves, refreshFn));
+        controller.GetUndoManager().PushCommand(std::make_unique<MoveEventsCommand>(moves, refreshFn));
         
-        // Re-select moved events
+        // Re-select moved events using IDs
         selection.clear();
         for (auto& m : moves) {
-            auto& evts = m.newTrack->events;
-            for (int i = 0; i < (int)evts.size(); ++i) {
-                if (evts[i].time == m.newEvent.time) {
-                    selection.insert({m.newTrack, i});
+            // Find the event by matching the event ID
+            for (const auto& evt : m.newTrack->events) {
+                if (evt.id == m.newEvent.id) {
+                    selection.insert({m.newTrack->id, evt.id});
                     break;
                 }
             }
@@ -815,7 +831,7 @@ void TimelineView::HandleRightDown(const wxPoint& pos)
             items.push_back({t, t->events[idx]});
             
             auto refreshFn = [this](){ selection.clear(); ValidateHitsounds(); Refresh(); };
-            undoManager.PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
+            controller.GetUndoManager().PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
         }
     }
 }
@@ -916,7 +932,7 @@ Track* TimelineView::GetTrackAtY(int y)
     int currentY = headerHeight;
     for (Track* t : visibleFn)
     {
-        int h = t->isChildTrack ? kChildTrackHeight : kParentTrackHeight;
+        int h = t->isChildTrack ? TrackLayout::ChildTrackHeight : TrackLayout::ParentTrackHeight;
         
         if (y >= currentY && y < currentY + h)
             return t;
@@ -970,7 +986,7 @@ void TimelineView::PerformMarqueeSelect(const wxRect& rect)
     
     for (Track* t : visible)
     {
-        int currentHeight = t->isChildTrack ? kChildTrackHeight : kParentTrackHeight;
+        int currentHeight = t->isChildTrack ? TrackLayout::ChildTrackHeight : TrackLayout::ParentTrackHeight;
         
         if (y + currentHeight < rect.GetTop() || y > rect.GetBottom())
         {
@@ -984,7 +1000,7 @@ void TimelineView::PerformMarqueeSelect(const wxRect& rect)
             {
                 int ex = timeToX(t->events[i].time);
                 wxRect eventRect(ex - 2, y + 2, 4, currentHeight - 4); 
-                if (rect.Intersects(eventRect)) selection.insert({t, i});
+                if (rect.Intersects(eventRect)) selection.insert({t->id, t->events[i].id});
             }
 
             for (Track& child : t->children)
@@ -993,7 +1009,7 @@ void TimelineView::PerformMarqueeSelect(const wxRect& rect)
                 {
                     int ex = timeToX(child.events[i].time);
                     wxRect eventRect(ex - 2, y + 2, 4, currentHeight - 4);
-                    if (rect.Intersects(eventRect)) selection.insert({&child, i});
+                    if (rect.Intersects(eventRect)) selection.insert({child.id, child.events[i].id});
                 }
             }
         }
@@ -1003,7 +1019,7 @@ void TimelineView::PerformMarqueeSelect(const wxRect& rect)
             {
                 int ex = timeToX(t->events[i].time);
                 wxRect eventRect(ex - 2, y + 2, 4, currentHeight - 4); 
-                if (rect.Intersects(eventRect)) selection.insert({t, i});
+                if (rect.Intersects(eventRect)) selection.insert({t->id, t->events[i].id});
             }
         }
         y += currentHeight;
@@ -1109,24 +1125,41 @@ void TimelineView::CopySelection()
     double minTime = std::numeric_limits<double>::max();
     int minRow = std::numeric_limits<int>::max();
     
+    // First pass: find min time and row
     for (const auto& sel : selection)
     {
-        double t = sel.first->events[sel.second].time;
-        int row = findRowIndex(sel.first);
-        if (t < minTime) minTime = t;
-        if (row < minRow) minRow = row;
+        Track* track = FindTrackById(sel.first);
+        if (!track) continue;
+        
+        // Find event by ID
+        for (const auto& evt : track->events) {
+            if (evt.id == sel.second) {
+                int row = findRowIndex(track);
+                if (evt.time < minTime) minTime = evt.time;
+                if (row < minRow) minRow = row;
+                break;
+            }
+        }
     }
     
+    // Second pass: build clipboard items
     for (const auto& sel : selection)
     {
-        const Event& evt = sel.first->events[sel.second];
-        int row = findRowIndex(sel.first);
+        Track* track = FindTrackById(sel.first);
+        if (!track) continue;
         
-        ClipboardItem item;
-        item.evt = evt;
-        item.relativeRow = row - minRow;
-        item.relativeTime = evt.time - minTime;
-        clipboard.push_back(item);
+        for (const auto& evt : track->events) {
+            if (evt.id == sel.second) {
+                int row = findRowIndex(track);
+                
+                ClipboardItem item;
+                item.evt = evt;
+                item.relativeRow = row - minRow;
+                item.relativeTime = evt.time - minTime;
+                clipboard.push_back(item);
+                break;
+            }
+        }
     }
 }
 
@@ -1147,14 +1180,14 @@ void TimelineView::SelectAll()
         {
             for (Track& child : t->children)
             {
-                for (int i = 0; i < (int)child.events.size(); ++i)
-                    selection.insert({&child, i});
+                for (const auto& evt : child.events)
+                    selection.insert({child.id, evt.id});
             }
         }
         else
         {
-            for (int i = 0; i < (int)t->events.size(); ++i)
-                selection.insert({t, i});
+            for (const auto& evt : t->events)
+                selection.insert({t->id, evt.id});
         }
     }
     Refresh();
@@ -1167,13 +1200,14 @@ void TimelineView::PasteAtPlayhead()
     std::vector<Track*> visible = GetVisibleTracks();
     
     int anchorRow = 0;
-    if (lastFocusedTrack)
+    Track* lastFocused = FindTrackById(controller.GetLastFocusedTrackId());
+    if (lastFocused)
     {
         for (int i = 0; i < (int)visible.size(); ++i)
         {
-            if (visible[i] == lastFocusedTrack ||
+            if (visible[i] == lastFocused ||
                 (!visible[i]->isExpanded && std::find_if(visible[i]->children.begin(), visible[i]->children.end(),
-                    [this](const Track& c){ return &c == lastFocusedTrack; }) != visible[i]->children.end()))
+                    [lastFocused](const Track& c){ return &c == lastFocused; }) != visible[i]->children.end()))
             {
                 anchorRow = i;
                 break;
@@ -1205,7 +1239,7 @@ void TimelineView::PasteAtPlayhead()
             // Optionally re-select pasted items
         };
         auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
-        undoManager.PushCommand(std::make_unique<PasteEventsCommand>(itemsToPaste, selCallback, refreshFn));
+        controller.GetUndoManager().PushCommand(std::make_unique<PasteEventsCommand>(itemsToPaste, selCallback, refreshFn));
     }
 }
 
@@ -1216,12 +1250,19 @@ void TimelineView::DeleteSelection()
     std::vector<RemoveEventsCommand::Item> items;
     for (const auto& sel : selection)
     {
-        const Event& evt = sel.first->events[sel.second];
-        items.push_back({sel.first, evt});
+        Track* track = FindTrackById(sel.first);
+        if (!track) continue;
+        
+        for (const auto& evt : track->events) {
+            if (evt.id == sel.second) {
+                items.push_back({track, evt});
+                break;
+            }
+        }
     }
     
     auto refreshFn = [this](){ selection.clear(); ValidateHitsounds(); Refresh(); };
-    undoManager.PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
+    controller.GetUndoManager().PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
 }
 
 // -----------------------------------------------------------------------------
@@ -1301,7 +1342,7 @@ void TimelineView::UpdateVirtualSize()
         std::function<void(const std::vector<Track>&)> calcHeight = [&](const std::vector<Track>& tracks) {
             for (const Track& t : tracks)
             {
-                height += t.isChildTrack ? kChildTrackHeight : kParentTrackHeight;
+                height += t.isChildTrack ? TrackLayout::ChildTrackHeight : TrackLayout::ParentTrackHeight;
                 if (t.isExpanded)
                 {
                     calcHeight(t.children);
@@ -1325,6 +1366,22 @@ void TimelineView::ValidateHitsounds()
     ProjectValidator::Validate(*project);
     
     if (OnTracksModified) OnTracksModified();
+}
+
+Track* TimelineView::FindTrackById(uint64_t id)
+{
+    if (!project || id == 0) return nullptr;
+    
+    std::function<Track*(std::vector<Track>&)> search = [&](std::vector<Track>& tracks) -> Track* {
+        for (auto& t : tracks) {
+            if (t.id == id) return &t;
+            Track* found = search(t.children);
+            if (found) return found;
+        }
+        return nullptr;
+    };
+    
+    return search(project->tracks);
 }
 
 Track* TimelineView::FindOrCreateHitnormalTrack(SampleSet bank, double volume)

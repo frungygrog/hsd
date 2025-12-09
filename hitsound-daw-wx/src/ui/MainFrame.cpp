@@ -1,5 +1,6 @@
 #include "MainFrame.h"
 #include "../model/ProjectValidator.h"
+#include "../Constants.h"
 #include "PresetDialog.h"
 #include "CreatePresetDialog.h"
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -8,11 +9,13 @@
 #include "../io/OsuParser.h"
 #include "../io/ProjectSaver.h"
 #include "ValidationErrorsDialog.h"
+#include <wx/filename.h>
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(wxID_OPEN, MainFrame::OnOpen)
     EVT_MENU(ID_OPEN_FOLDER, MainFrame::OnOpenFolder)
     EVT_TIMER(ID_PLAYBACK_TIMER, MainFrame::OnTimer)
+    EVT_CLOSE(MainFrame::OnClose)
 wxEND_EVENT_TABLE()
 
 MainFrame::MainFrame()
@@ -249,9 +252,9 @@ void MainFrame::OnOpen(wxCommandEvent& evt)
     int totalHeight = 2000; // Default buffer
     // Better: Helper in Project or TrackList to calculate total pixels?
     // Let's iterate simply
-    int calculatedHeight = 130; // Header (30 Ruler + 100 Master)
+    int calculatedHeight = TrackLayout::HeaderHeight; // Header (Ruler + Master)
     std::function<void(Track&)> calcH = [&](Track& t) {
-        calculatedHeight += t.isChildTrack ? 40 : 80;
+        calculatedHeight += TrackLayout::GetTrackHeight(t.isChildTrack);
         if (t.isExpanded && !t.children.empty()) {
             for (auto& c : t.children) calcH(c);
         }
@@ -348,9 +351,9 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
     }
 
     // Recalculate Height
-    int calculatedHeight = 130; 
+    int calculatedHeight = TrackLayout::HeaderHeight; 
     std::function<void(Track&)> calcH = [&](Track& t) {
-        calculatedHeight += t.isChildTrack ? 40 : 80;
+        calculatedHeight += TrackLayout::GetTrackHeight(t.isChildTrack);
         if (t.isExpanded && !t.children.empty()) {
             for (auto& c : t.children) calcH(c);
         }
@@ -387,14 +390,45 @@ void MainFrame::OnLoadPreset(wxCommandEvent& evt)
         auto result = dlg.GetResult();
         if (result.confirmed)
         {
-            ApplyPreset(result.presetName.ToStdString());
+            if (result.isBuiltIn)
+            {
+                // Handle built-in presets
+                if (result.presetName.StartsWith("Generic"))
+                    ApplyPreset("Generic");
+            }
+            else
+            {
+                // Load custom preset from file
+                wxString presetsDir = CreatePresetDialog::GetPresetsDirectory();
+                wxString filepath = presetsDir + wxFileName::GetPathSeparator() + result.presetName + ".preset";
+                
+                std::vector<Track> loadedTracks = PresetDialog::LoadPresetFromFile(filepath);
+                
+                if (!loadedTracks.empty())
+                {
+                    for (auto& t : loadedTracks)
+                        project.tracks.push_back(t);
+                    
+                    trackList->SetProject(&project);
+                    timelineView->SetProject(&project);
+                    timelineView->UpdateVirtualSize();
+                    
+                    wxMessageBox(wxString::Format("Preset '%s' loaded successfully!\n\n%zu tracks added.", 
+                                result.presetName, loadedTracks.size()), 
+                                "Preset Loaded", wxICON_INFORMATION);
+                }
+                else
+                {
+                    wxMessageBox("Failed to load preset or preset is empty.", "Error", wxICON_ERROR);
+                }
+            }
         }
     }
 }
 
 void MainFrame::OnCreatePreset(wxCommandEvent& evt)
 {
-    CreatePresetDialog dlg(this);
+    CreatePresetDialog dlg(this, project.tracks);
     dlg.ShowModal();
 }
 
@@ -534,6 +568,7 @@ bool MainFrame::PerformSave(const juce::File& file)
     // 2. Save
     if (ProjectSaver::SaveProject(project, file))
     {
+        timelineView->GetUndoManager().MarkClean();
         wxMessageBox("Project saved successfully!", "Success", wxICON_INFORMATION);
         return true;
     }
@@ -542,4 +577,40 @@ bool MainFrame::PerformSave(const juce::File& file)
         wxMessageBox("Failed to save project. Check file permissions or disk space.", "Error", wxICON_ERROR);
         return false;
     }
+}
+
+void MainFrame::OnClose(wxCloseEvent& evt)
+{
+    // Check if there are unsaved changes
+    if (timelineView && timelineView->GetUndoManager().IsDirty())
+    {
+        int result = wxMessageBox(
+            "You have unsaved changes. Do you want to save before closing?",
+            "Unsaved Changes",
+            wxYES_NO | wxCANCEL | wxICON_WARNING
+        );
+        
+        if (result == wxYES)
+        {
+            // Try to save
+            wxCommandEvent dummy;
+            OnSave(dummy);
+            
+            // Check if save was successful (still dirty = save failed or cancelled)
+            if (timelineView->GetUndoManager().IsDirty())
+            {
+                // Save was not completed, cancel close
+                evt.Veto();
+                return;
+            }
+        }
+        else if (result == wxCANCEL)
+        {
+            evt.Veto();
+            return;
+        }
+        // wxNO: proceed to close without saving
+    }
+    
+    evt.Skip(); // Allow default close behavior
 }

@@ -1,12 +1,12 @@
 #pragma once
 #include <wx/wx.h>
 #include "../model/Project.h"
+#include "TimelineController.h"
 #include <set>
 #include <utility>
 #include <vector>
 #include <map>
 #include <algorithm>
-#include "../model/Command.h"
 #include "../Constants.h"
 
 enum class ToolType
@@ -50,9 +50,12 @@ public:
     
     void SetWaveform(const std::vector<float>& peaks, double duration);
 
-    // Interaction (Public for MainFrame Menu)
-    void Undo() { undoManager.Undo(); Refresh(); } // Add Refresh just in case commands don't trigger it adequately (though they should)
-    void Redo() { undoManager.Redo(); Refresh(); }
+    // Interaction (Public for MainFrame Menu) - delegates to controller
+    void Undo() { controller.Undo(); }
+    void Redo() { controller.Redo(); }
+    
+    UndoManager& GetUndoManager() { return controller.GetUndoManager(); }
+    TimelineController& GetController() { return controller; }
     
     void CopySelection();
     void CutSelection();
@@ -64,10 +67,8 @@ private:
     Project* project = nullptr;
     ToolType currentTool = ToolType::Select;
 
-    // Undo/Redo
-    UndoManager undoManager;
-    
-    Track* lastFocusedTrack = nullptr;
+    // Controller handles business logic (selection, clipboard, undo, validation)
+    TimelineController controller;
     
     // Grid & Zoom
     double pixelsPerSecond = ZoomSettings::DefaultPixelsPerSecond;
@@ -90,21 +91,21 @@ private:
     double loopEnd = -1.0;
     bool isDraggingLoop = false; // Dragging in ruler
     
-    // Selection
-    std::set<std::pair<Track*, int>> selection; 
-    std::set<std::pair<Track*, int>> baseSelection; // Selection before marquee drag starts 
+    // Selection - uses {trackId, eventId} pairs for pointer stability
+    std::set<std::pair<uint64_t, uint64_t>> selection; 
+    std::set<std::pair<uint64_t, uint64_t>> baseSelection; // Selection before marquee drag starts 
     
     // Dragging
     bool isDragging = false;
     wxPoint dragStartPos; // Screen coords
-    Track* dragStartTrack = nullptr;
+    uint64_t dragStartTrackId = 0;
     double dragStartTime = 0.0;
     
     struct DragGhost {
         Event evt;
-        Track* originalTrack; 
+        uint64_t originalTrackId;
         int originalRowIndex;
-        Track* targetTrack; // Calculated during drag
+        uint64_t targetTrackId;  // Calculated during drag (0 = same as original)
         double originalTime;
     };
     std::vector<DragGhost> dragGhosts;
@@ -135,6 +136,9 @@ private:
     
     // Find or create a HitNormal track for the given bank with matching volume
     Track* FindOrCreateHitnormalTrack(SampleSet bank, double volume);
+    
+    // Find a track by its unique ID (searches recursively)
+    Track* FindTrackById(uint64_t id);
     
     const Project::TimingPoint* GetTimingPointAt(double time);
     double SnapToGrid(double time);

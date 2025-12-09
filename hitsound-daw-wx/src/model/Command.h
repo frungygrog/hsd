@@ -20,7 +20,9 @@ public:
 class UndoManager
 {
 public:
-    void EnsureCleanState();
+    void MarkClean();      // Call after save to mark current state as clean
+    bool IsDirty() const;  // Returns true if there are unsaved changes
+    
     void PushCommand(std::unique_ptr<Command> cmd);
     void Undo();
     void Redo();
@@ -32,6 +34,7 @@ public:
 
 private:
     std::deque<std::unique_ptr<Command>> history;
-    int currentIndex = 0; // Points to the slot for the NEXT new command (or the one to Redo)
+    int currentIndex = 0;      // Points to the slot for the NEXT new command (or the one to Redo)
+    int savedStateIndex = 0;   // Index at which the project was last saved
     const size_t maxHistory = 100;
 };

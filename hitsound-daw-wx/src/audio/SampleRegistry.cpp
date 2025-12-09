@@ -17,12 +17,20 @@ void SampleRegistry::addSample (const SampleRef& ref)
         return;
 
     if (! ref.file.existsAsFile())
+    {
+        DBG("SampleRegistry: Sample file not found: " + ref.file.getFullPathName());
         return;
+    }
 
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (ref.file));
     if (reader != nullptr)
     {
         samples[key] = { ref, std::move (reader) };
+        DBG("SampleRegistry: Loaded sample: " + ref.file.getFileName());
+    }
+    else
+    {
+        DBG("SampleRegistry: Failed to create reader for: " + ref.file.getFileName());
     }
 }
 
@@ -82,7 +90,16 @@ void SampleRegistry::loadDefaultSamples (const juce::File& dir)
             {
                 juce::String key = juce::String (static_cast<int> (def.set)) + "-" + juce::String (static_cast<int> (def.type));
                 defaultSamples[key] = std::move (reader);
+                DBG("SampleRegistry: Loaded default sample: " + def.filename);
             }
+            else
+            {
+                DBG("SampleRegistry: Failed to load default sample: " + def.filename);
+            }
+        }
+        else
+        {
+            DBG("SampleRegistry: Default sample not found: " + def.filename);
         }
     }
 }

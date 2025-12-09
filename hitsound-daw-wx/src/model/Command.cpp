@@ -4,11 +4,17 @@
 // UndoManager Implementation
 // -----------------------------------------------------------------------------
 
-void UndoManager::EnsureCleanState()
+void UndoManager::MarkClean()
 {
-    // Optional: Call this when project saves to know where "clean" state was
+    // Remember the current position as the "clean" saved state
+    savedStateIndex = currentIndex;
 }
 
+bool UndoManager::IsDirty() const
+{
+    // Dirty if current position differs from where we last saved
+    return currentIndex != savedStateIndex;
+}
 void UndoManager::PushCommand(std::unique_ptr<Command> cmd)
 {
     // If we are not at the end, clear redo stack
@@ -87,4 +93,5 @@ void UndoManager::Clear()
 {
     history.clear();
     currentIndex = 0;
+    savedStateIndex = 0;
 }

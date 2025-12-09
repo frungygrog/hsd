@@ -12,17 +12,15 @@ enum class ValidationState {
     Warning     // Warning state (pink) - e.g., addition without hitnormal backing
 };
 
-// Global unique ID generator for events
+// Global unique ID generators
 inline std::atomic<uint64_t> g_nextEventId{1};
+inline std::atomic<uint64_t> g_nextTrackId{1};
 
 struct Event
 {
     uint64_t id = g_nextEventId++;  // Unique identifier for reliable undo/redo matching
     
-    double time; // Seconds or Milliseconds? Osu is ms. Let's use seconds internally for audio? Or ms for DAW UI?
-                 // JUCE Audio usually uses samples or seconds.
-                 // Osu files are integer ms.
-                 // Let's use double seconds for precision in DAW.
+    double time;  // Time in seconds (converted to/from ms for .osu files)
     
     double volume = 1.0;
     ValidationState validationState = ValidationState::Valid;
@@ -39,6 +37,8 @@ struct SampleLayer
 
 struct Track
 {
+    uint64_t id = g_nextTrackId++;  // Unique identifier for stable references
+    
     std::string name;
     
     // Metadata for validation and playback

@@ -97,13 +97,22 @@ void AudioEngine::LoadMasterTrack(const std::string& path)
     masterReaderSource.reset();
     
     juce::File file(path);
-    if (!file.existsAsFile()) return;
+    if (!file.existsAsFile())
+    {
+        DBG("AudioEngine: Master track file not found: " + juce::String(path));
+        return;
+    }
     
     auto* reader = formatManager.createReaderFor(file);
     if (reader)
     {
         masterReaderSource.reset(new juce::AudioFormatReaderSource(reader, true));
         masterTransport.setSource(masterReaderSource.get(), 0, nullptr, reader->sampleRate);
+        DBG("AudioEngine: Loaded master track: " + file.getFileName());
+    }
+    else
+    {
+        DBG("AudioEngine: Failed to create reader for: " + file.getFileName());
     }
 }
 

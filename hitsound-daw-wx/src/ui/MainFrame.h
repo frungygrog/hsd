@@ -51,6 +51,7 @@ private:
     void OnTimer(wxTimerEvent& evt);
     void OnLoadPreset(wxCommandEvent& evt);
     void OnCreatePreset(wxCommandEvent& evt);
+    void OnClose(wxCloseEvent& evt);
     void ApplyPreset(const std::string& presetName);
 
     // Helpers

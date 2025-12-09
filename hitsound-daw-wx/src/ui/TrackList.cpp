@@ -1,5 +1,6 @@
 #include "TrackList.h"
 #include "../model/Project.h"
+#include "../Constants.h"
 #include "AddTrackDialog.h"
 #include "AddGroupingDialog.h"
 #include "TimelineView.h" 
@@ -20,16 +21,16 @@ wxBEGIN_EVENT_TABLE(TrackList, wxPanel)
     EVT_MOUSE_CAPTURE_LOST(TrackList::OnCaptureLost)
 wxEND_EVENT_TABLE()
 
-// Layout constants
+
 namespace {
-    constexpr int kRulerHeight = 30;
-    constexpr int kMasterTrackHeight = 100;
-    constexpr int kHeaderHeight = kRulerHeight + kMasterTrackHeight;
-    constexpr int kParentTrackHeight = 80;
-    constexpr int kChildTrackHeight = 40;
+    constexpr int kRulerHeight = TrackLayout::RulerHeight;
+    constexpr int kMasterTrackHeight = TrackLayout::MasterTrackHeight;
+    constexpr int kHeaderHeight = TrackLayout::HeaderHeight;
+    constexpr int kParentTrackHeight = TrackLayout::ParentTrackHeight;
+    constexpr int kChildTrackHeight = TrackLayout::ChildTrackHeight;
 }
 
-// Helper to load and recolor SVGs robustly
+
 static wxBitmap LoadIconHelper(const wxString& name, const wxColor& color)
 {
     wxString path = "Resources/icon/" + name;
@@ -53,9 +54,9 @@ static wxBitmap LoadIconHelper(const wxString& name, const wxColor& color)
     return wxBitmap();
 }
 
-// -----------------------------------------------------------------------------
-// Static Utility Methods
-// -----------------------------------------------------------------------------
+
+
+
 
 std::pair<std::string, bool> TrackList::GetAbbreviation(SampleSet s, SampleType t)
 {
@@ -88,9 +89,9 @@ void TrackList::UpdateTrackNameWithVolume(Track& track, double volume)
     }
 }
 
-// -----------------------------------------------------------------------------
-// Constructor and Basic Methods
-// -----------------------------------------------------------------------------
+
+
+
 
 TrackList::TrackList(wxWindow* parent)
     : wxPanel(parent)
@@ -155,9 +156,9 @@ int TrackList::GetTrackHeight(const Track& track)
     return track.isChildTrack ? kChildTrackHeight : kParentTrackHeight;
 }
 
-// -----------------------------------------------------------------------------
-// Find Track at Y Position
-// -----------------------------------------------------------------------------
+
+
+
 
 Track* TrackList::FindTrackAtY(int y, int& outIndent, Track** outParent)
 {
@@ -189,15 +190,15 @@ Track* TrackList::FindTrackAtY(int y, int& outIndent, Track** outParent)
     return nullptr;
 }
 
-// -----------------------------------------------------------------------------
-// Painting
-// -----------------------------------------------------------------------------
+
+
+
 
 void TrackList::DrawHeader(wxDC& dc, int& y, int width)
 {
     wxColour borderCol(100, 100, 100);
     
-    // Draw Ruler with buttons
+    
     wxRect rulerRect(0, y, width, kRulerHeight);
     dc.SetBrush(wxBrush(wxColour(50, 50, 50)));
     dc.SetPen(*wxTRANSPARENT_PEN);
@@ -212,7 +213,7 @@ void TrackList::DrawHeader(wxDC& dc, int& y, int width)
     int btnY = y + (kRulerHeight - 16) / 2;
     int curX = 10;
     
-    // Add Track button
+    
     if (trackIcon.IsOk()) {
         dc.DrawBitmap(trackIcon, curX, btnY, true);
         curX += 20;
@@ -220,14 +221,14 @@ void TrackList::DrawHeader(wxDC& dc, int& y, int width)
     dc.DrawText("Add Track", curX, btnY);
     curX += dc.GetTextExtent("Add Track").GetWidth() + 15;
     
-    // Add Grouping button
+    
     if (groupingIcon.IsOk()) {
         dc.DrawBitmap(groupingIcon, curX, btnY, true);
         curX += 20;
     }
     dc.DrawText("Add Grouping", curX, btnY);
     
-    // Draw Master Track
+    
     int masterY = y + kRulerHeight;
     wxRect masterRect(0, masterY, width, kMasterTrackHeight);
     
@@ -241,7 +242,7 @@ void TrackList::DrawHeader(wxDC& dc, int& y, int width)
     masterTitleFont.SetPointSize(11);
     dc.SetFont(masterTitleFont);
     
-    // Display "Artist - Title" with truncation
+    
     wxString masterTitle = "Master Audio";
     if (project && (!project->artist.empty() || !project->title.empty())) {
         masterTitle = wxString::FromUTF8(project->artist) + " - " + wxString::FromUTF8(project->title);
@@ -257,7 +258,7 @@ void TrackList::DrawHeader(wxDC& dc, int& y, int width)
     
     dc.DrawText(masterTitle, 10, masterY + 15);
     
-    // BPM and Offset info
+    
     wxFont infoFont = dc.GetFont();
     infoFont.SetWeight(wxFONTWEIGHT_NORMAL);
     infoFont.SetPointSize(9);
@@ -353,11 +354,11 @@ void TrackList::DrawSlider(wxDC& dc, Track& track, int y, int width)
     int sliderH = 14;
     int midY = y + btnY + sliderH / 2;
     
-    // Track line
+    
     dc.SetPen(wxPen(wxColour(160, 160, 160), 2)); 
     dc.DrawLine(sliderX, midY, sliderX + sliderW, midY);
     
-    // Tick marks
+    
     dc.SetPen(wxPen(wxColour(160, 160, 160), 1));
     int tickH = 4;
     float ticks[] = {0.0f, 0.2f, 0.4f, 0.5f, 0.6f, 0.8f, 1.0f};
@@ -366,7 +367,7 @@ void TrackList::DrawSlider(wxDC& dc, Track& track, int y, int width)
         dc.DrawLine(tx, midY - tickH, tx, midY + tickH);
     }
     
-    // Thumb
+    
     int thumbW = 10;
     int thumbH = 14;
     int thumbX = sliderX + (int)(track.gain * sliderW) - thumbW / 2;
@@ -391,7 +392,7 @@ void TrackList::DrawPrimarySelector(wxDC& dc, Track& track, int y, int width)
     int pX = valX - gap - pW;
     int pY = y + 25;
     
-    // P Label
+    
     wxRect pLabelRect(pX, pY, pW, pH);
     dc.SetBrush(wxBrush(wxColour(60, 60, 60)));
     dc.SetPen(wxPen(wxColour(80, 80, 80)));
@@ -405,7 +406,7 @@ void TrackList::DrawPrimarySelector(wxDC& dc, Track& track, int y, int width)
     wxSize tz = dc.GetTextExtent("P");
     dc.DrawText("P", pLabelRect.x + (pLabelRect.width - tz.x)/2, pLabelRect.y + (pLabelRect.height - tz.y)/2);
     
-    // Value Box
+    
     wxRect valRect(valX, pY, valW, pH);
     dc.SetBrush(wxBrush(wxColour(220, 220, 220)));
     dc.SetPen(wxPen(wxColour(100, 100, 100)));
@@ -421,7 +422,7 @@ void TrackList::DrawPrimarySelector(wxDC& dc, Track& track, int y, int width)
     tz = dc.GetTextExtent(valStr);
     dc.DrawText(valStr, valRect.x + (valRect.width - tz.x)/2, valRect.y + (valRect.height - tz.y)/2);
     
-    // Dropdown triangle
+    
     wxPoint tri[] = {
         wxPoint(valRect.GetRight() - 5, valRect.GetBottom() - 5),
         wxPoint(valRect.GetRight() - 2, valRect.GetBottom() - 5),
@@ -434,7 +435,7 @@ void TrackList::DrawPrimarySelector(wxDC& dc, Track& track, int y, int width)
 void TrackList::DrawTrackControls(wxDC& dc, Track& track, int y, int width, int indent)
 {
     if (indent == 0) {
-        // Mute button
+        
         wxRect muteRect(5, y + 25, 30, 20);
         dc.SetBrush(track.mute ? wxBrush(wxColour(100, 100, 200)) : wxBrush(wxColour(200, 200, 200)));
         dc.SetPen(wxPen(wxColour(80, 80, 80)));
@@ -449,7 +450,7 @@ void TrackList::DrawTrackControls(wxDC& dc, Track& track, int y, int width, int 
         wxSize tz = dc.GetTextExtent("M");
         dc.DrawText("M", muteRect.x + (muteRect.width - tz.x)/2, muteRect.y + (muteRect.height - tz.y)/2);
         
-        // Solo button
+        
         wxRect soloRect(5, y + 50, 30, 20);
         dc.SetBrush(track.solo ? wxBrush(wxColour(100, 200, 100)) : wxBrush(wxColour(200, 200, 200)));
         dc.DrawRoundedRectangle(soloRect, 2);
@@ -457,13 +458,13 @@ void TrackList::DrawTrackControls(wxDC& dc, Track& track, int y, int width, int 
         tz = dc.GetTextExtent("S");
         dc.DrawText("S", soloRect.x + (soloRect.width - tz.x)/2, soloRect.y + (soloRect.height - tz.y)/2);
         
-        // Primary selector
+        
         DrawPrimarySelector(dc, track, y, width);
         
-        // Abbreviation
+        
         DrawAbbreviation(dc, track, y, width, kParentTrackHeight);
     } else {
-        // Child track - draw slider
+        
         DrawSlider(dc, track, y, width);
     }
 }
@@ -475,13 +476,13 @@ void TrackList::DrawTrackRow(wxDC& dc, Track& track, int& y, int width, int inde
     wxColour borderCol(100, 100, 100);
     wxColour panelCol(192, 192, 192);
     
-    // Track Panel
+    
     wxRect trackRect(0, y, width, currentHeight);
     dc.SetPen(wxPen(borderCol));
     dc.SetBrush(wxBrush(panelCol));
     dc.DrawRectangle(trackRect);
     
-    // Highlight if dragging this track
+    
     if (isDraggingTrack && &track == dragSourceTrack) {
         std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::CreateFromUnknownDC(dc));
         if (gc) {
@@ -491,13 +492,13 @@ void TrackList::DrawTrackRow(wxDC& dc, Track& track, int& y, int width, int inde
         }
     }
     
-    // Title bar
+    
     int titleH = (indent == 0) ? 20 : 15;
     wxRect titleRect(trackRect.GetX(), trackRect.GetY(), width, titleH);
     dc.SetBrush(wxBrush(wxColour(220, 220, 220))); 
     dc.DrawRectangle(titleRect);
     
-    // Expander button
+    
     if (!track.children.empty()) {
         wxRect expanderRect(indent * 10 + 2, y + 2, 16, 16);
         dc.SetBrush(*wxWHITE_BRUSH);
@@ -509,7 +510,7 @@ void TrackList::DrawTrackRow(wxDC& dc, Track& track, int& y, int width, int inde
             dc.DrawLine(expanderRect.GetX() + 8, expanderRect.GetY() + 3, expanderRect.GetX() + 8, expanderRect.GetBottom() - 3);
     }
 
-    // Track name
+    
     dc.SetTextForeground(*wxBLACK);
     int nameX = 25;
 
@@ -518,7 +519,7 @@ void TrackList::DrawTrackRow(wxDC& dc, Track& track, int& y, int width, int inde
         f.SetPointSize(8);
         dc.SetFont(f);
         
-        // Bullet point
+        
         dc.SetBrush(wxBrush(wxColour(100, 100, 100)));
         dc.SetPen(*wxTRANSPARENT_PEN);
         dc.DrawCircle(12, y + 8, 3);
@@ -531,12 +532,12 @@ void TrackList::DrawTrackRow(wxDC& dc, Track& track, int& y, int width, int inde
     
     dc.DrawText(track.name, nameX, y + 2);
     
-    // Controls
+    
     DrawTrackControls(dc, track, y, width, indent);
     
     y += currentHeight;
     
-    // Draw children
+    
     if (track.isExpanded) {
         for (auto& child : track.children)
             DrawTrackRow(dc, child, y, width, indent + 1);
@@ -550,7 +551,7 @@ void TrackList::DrawDropIndicator(wxDC& dc, int width, int headerHeight)
     int targetY = headerHeight;
     
     if (currentDropTarget.parent == nullptr) {
-        // Root level
+        
         int curY = headerHeight;
         int pIdx = 0;
         for (auto& t : project->tracks) {
@@ -567,7 +568,7 @@ void TrackList::DrawDropIndicator(wxDC& dc, int width, int headerHeight)
         }
         if (pIdx == currentDropTarget.index) targetY = curY;
     } else {
-        // Child level
+        
         int curY = headerHeight;
         for (auto& t : project->tracks) {
             int h = t.isChildTrack ? kChildTrackHeight : kParentTrackHeight;
@@ -624,9 +625,9 @@ void TrackList::OnPaint(wxPaintEvent& evt)
     DrawDropIndicator(dc, width, kHeaderHeight);
 }
 
-// -----------------------------------------------------------------------------
-// Track Operations
-// -----------------------------------------------------------------------------
+
+
+
 
 void TrackList::AddChildToTrack(Track* parent)
 {
@@ -768,7 +769,7 @@ void TrackList::DeleteTrack(Track* track, Track* parent)
     if (!track) return;
     
     if (parent) {
-        // Deleting child track
+        
         int childIdx = -1;
         for (size_t i = 0; i < parent->children.size(); ++i) {
             if (&parent->children[i] == track) {
@@ -793,7 +794,7 @@ void TrackList::DeleteTrack(Track* track, Track* parent)
             }
         }
     } else {
-        // Deleting parent track
+        
         for (auto it = project->tracks.begin(); it != project->tracks.end(); ++it) {
             if (&(*it) == track) {
                 project->tracks.erase(it);
@@ -807,9 +808,9 @@ void TrackList::DeleteTrack(Track* track, Track* parent)
     if (timelineView) timelineView->UpdateVirtualSize();
 }
 
-// -----------------------------------------------------------------------------
-// Context Menu Handlers
-// -----------------------------------------------------------------------------
+
+
+
 
 void TrackList::ShowParentContextMenu(Track* track)
 {
@@ -837,7 +838,7 @@ void TrackList::ShowChildContextMenu(Track* track)
 {
     if (!track) return;
     
-    // Find parent
+    
     Track* parent = nullptr;
     for (auto& t : project->tracks) {
         for (size_t i = 0; i < t.children.size(); ++i) {
@@ -877,7 +878,7 @@ void TrackList::OnContextMenu(wxContextMenuEvent& evt)
     
     if (!track) return;
     
-    // Check if it's a root (parent) track
+    
     bool isRoot = false;
     for (auto& t : project->tracks) {
         if (&t == track) { isRoot = true; break; }
@@ -890,9 +891,9 @@ void TrackList::OnContextMenu(wxContextMenuEvent& evt)
     }
 }
 
-// -----------------------------------------------------------------------------
-// Header Click Handler
-// -----------------------------------------------------------------------------
+
+
+
 
 bool TrackList::HandleHeaderClick(int clickX, int clickY)
 {
@@ -1006,13 +1007,13 @@ bool TrackList::HandleHeaderClick(int clickX, int clickY)
     return false;
 }
 
-// -----------------------------------------------------------------------------
-// Track Click Handler
-// -----------------------------------------------------------------------------
+
+
+
 
 bool TrackList::HandleTrackClick(Track& track, int clickX, int localY, int y, int width, int indent)
 {
-    // 1. Expander
+    
     if (!track.children.empty()) {
         wxRect expanderRect(indent * 10 + 2, 2, 16, 16);
         if (clickX >= expanderRect.GetX() && clickX <= expanderRect.GetRight() &&
@@ -1025,7 +1026,7 @@ bool TrackList::HandleTrackClick(Track& track, int clickX, int localY, int y, in
         }
     }
     
-    // 2. Mute/Solo buttons (parent only)
+    
     if (indent == 0) {
         wxRect muteRect(5, 25, 30, 20); 
         wxRect soloRect(5, 50, 30, 20);
@@ -1044,7 +1045,7 @@ bool TrackList::HandleTrackClick(Track& track, int clickX, int localY, int y, in
         }
     }
     
-    // 3. Slider (child only)
+    
     if (indent > 0) {
         int btnY = 20;
         int sliderW = (int)(width * 0.75);
@@ -1067,7 +1068,7 @@ bool TrackList::HandleTrackClick(Track& track, int clickX, int localY, int y, in
         }
     }
     
-    // 4. Primary Selector (Parent only)
+    
     if (indent == 0 && !track.children.empty()) {
         int pH = 20; 
         int valW = 50;
@@ -1105,9 +1106,9 @@ bool TrackList::HandleTrackClick(Track& track, int clickX, int localY, int y, in
     return false;
 }
 
-// -----------------------------------------------------------------------------
-// Mouse Event Handler
-// -----------------------------------------------------------------------------
+
+
+
 
 void TrackList::OnMouseEvents(wxMouseEvent& evt)
 {
@@ -1118,13 +1119,13 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
         int clickY = evt.GetY() + scrollOffsetY;
         int width = GetClientSize().GetWidth();
         
-        // Header click
+        
         if (clickY < kHeaderHeight) {
             if (HandleHeaderClick(clickX, clickY)) return;
             return;
         }
         
-        // Track hit testing
+        
         int y = kHeaderHeight;
         bool handled = false;
         
@@ -1153,7 +1154,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
             if (handled) break;
         }
         
-        // Start track drag if not handled
+        
         if (!handled) {
             int indent = 0;
             Track* hit = FindTrackAtY(clickY, indent);
@@ -1214,7 +1215,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
             if (isDraggingTrack) {
                 dragCurrentY = y;
                 
-                // Determine drop target
+                
                 Track* sourceParent = nullptr;
                 for (auto& p : project->tracks) {
                     for (auto& c : p.children) {
@@ -1226,7 +1227,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                 currentDropTarget.isValid = false;
                 
                 if (sourceParent) {
-                    // Dragging a child - can only drop within same parent
+                    
                     currentDropTarget.parent = sourceParent;
                     
                     int pY = kHeaderHeight;
@@ -1253,7 +1254,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                     currentDropTarget.isValid = true;
                 }
                 else {
-                    // Dragging a parent
+                    
                     currentDropTarget.parent = nullptr;
                     int pY = kHeaderHeight;
                     int bestIdx = -1;
@@ -1279,7 +1280,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
     else if (evt.LeftUp()) {
         if (isDraggingTrack && currentDropTarget.isValid && dragSourceTrack) {
             if (currentDropTarget.parent) {
-                // Moving child
+                
                 auto& kids = currentDropTarget.parent->children;
                 int srcIdx = -1;
                 for (int i = 0; i < (int)kids.size(); ++i)
@@ -1299,7 +1300,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                 }
             }
             else {
-                // Moving parent
+                
                 auto& tracks = project->tracks;
                 int srcIdx = -1;
                 for (int i = 0; i < (int)tracks.size(); ++i)

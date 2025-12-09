@@ -38,6 +38,8 @@ add_executable(hitsound-daw-wx
     src/ui/MainFrame.h
     src/ui/TimelineView.cpp
     src/ui/TimelineView.h
+    src/ui/TimelineController.cpp
+    src/ui/TimelineController.h
     src/ui/TrackList.cpp
     src/ui/TrackList.h
     src/ui/TransportPanel.cpp

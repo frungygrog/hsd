@@ -40,10 +40,19 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
     auto numSamples = bufferToFill.numSamples;
     auto endSample = currentSample + numSamples;
 
+    // Check if any track is soloed (recursive check)
+    bool anySolo = false;
+    std::function<void(const Track&)> checkSolo = [&](const Track& t) {
+        if (t.solo) anySolo = true;
+        for (const auto& child : t.children) checkSolo(child);
+    };
+    for (const auto& t : tracksSnapshot) checkSolo(t);
+
     // 1. Trigger new events
     std::function<void(const Track&)> processTrack = [&](const Track& track)
     {
-        if (track.mute)
+        // Skip if muted, or if we're in solo mode and this track isn't soloed
+        if (track.mute || (anySolo && !track.solo))
             return;
 
         // Process events
