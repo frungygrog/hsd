@@ -67,8 +67,13 @@ add_executable(hitsound-daw-wx
     src/model/Track.h
     src/model/Project.h
     src/model/Command.h
+    src/model/Command.cpp
     src/model/Commands.h
+    src/model/Commands.cpp
     src/model/ProjectValidator.h
+    src/model/ProjectValidator.cpp
+    src/model/HitObject.h
+    src/model/HitObject.cpp
     src/io/OsuParser.cpp
     src/io/OsuParser.h
 )
