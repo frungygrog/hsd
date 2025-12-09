@@ -73,13 +73,14 @@
         └── ui/                             # User interface
             ├── MainFrame.h/.cpp            # Main application window
             ├── TimelineView.h/.cpp         # Timeline canvas (events, waveform, grid)
+            ├── TimelineController.h/.cpp   # Business logic controller for TimelineView
             ├── TrackList.h/.cpp            # Left panel track controls
             ├── TransportPanel.h/.cpp       # Playback controls, tools, volume sliders
             ├── AddTrackDialog.h/.cpp       # Dialog for adding/editing tracks
             ├── AddGroupingDialog.h/.cpp    # Dialog for adding/editing groupings
             ├── ProjectSetupDialog.h/.cpp   # Initial project selection dialog
-            ├── PresetDialog.h/.cpp         # Preset loading dialog
-            ├── CreatePresetDialog.h/.cpp   # Preset creation placeholder dialog
+            ├── PresetDialog.h/.cpp         # Preset loading dialog (built-in + custom)
+            ├── CreatePresetDialog.h/.cpp   # Preset creation and saving
             └── ValidationErrorsDialog.h/.cpp # Validation error display
 ```
 
@@ -380,7 +381,57 @@ The main application window that orchestrates all components.
 - TrackList mirrors TimelineView's vertical scroll position
 - Implemented via event listeners and `SetVerticalScrollOffset()`
 
-### 6.2 TimelineView (TimelineView.h/.cpp)
+### 6.2 TimelineView and TimelineController
+
+**Architecture (View/Controller Separation):**
+
+The timeline is split into two classes following the MVC pattern:
+- **TimelineView** (`TimelineView.h/.cpp`) - The view layer: rendering, input handling, coordinates
+- **TimelineController** (`TimelineController.h/.cpp`) - The controller layer: business logic, undo/redo, selection, clipboard
+
+```
+┌─────────────────┐     ┌────────────────────┐     ┌─────────┐
+│   TimelineView  │────▶│ TimelineController │────▶│ Project │
+│   (rendering)   │     │  (business logic)  │     │ (model) │
+└─────────────────┘     └────────────────────┘     └─────────┘
+```
+
+#### TimelineController (TimelineController.h/.cpp)
+
+**Responsibilities:**
+- UndoManager ownership and undo/redo operations
+- Selection state (`{trackId, eventId}` pairs)
+- Clipboard operations (copy, cut, paste, delete)
+- Event placement with auto-hitnormal logic
+- Validation coordination
+- Track lookup helpers
+
+**Key Methods:**
+```cpp
+// Selection
+void SelectEvent(trackId, eventId, addToSelection);
+void ClearSelection();
+bool IsSelected(trackId, eventId);
+
+// Clipboard
+void CopySelection(visibleTracks);
+void CutSelection(visibleTracks);
+void PasteAtPlayhead(time, visibleTracks);
+void DeleteSelection();
+
+// Event placement
+void PlaceEvent(target, time, defaultHitnormalBank);
+
+// Undo/Redo
+void Undo(); void Redo();
+UndoManager& GetUndoManager();
+```
+
+**Callbacks:**
+- `OnDataChanged` - View should refresh
+- `OnTracksModified` - Audio engine should sync
+
+#### TimelineView (TimelineView.h/.cpp)
 
 The main canvas for event visualization and editing. Extends `wxScrolledWindow`.
 
@@ -541,7 +592,8 @@ Fields: Name, HitNormal Bank, Additions Bank, Whistle/Finish/Clap checkboxes, Vo
 - Options: "Open Existing" or "Start From Scratch"
 
 #### PresetDialog / CreatePresetDialog
-- Placeholder dialogs for preset management
+- **PresetDialog**: Lists built-in (Generic) and custom presets from user data directory
+- **CreatePresetDialog**: Saves current tracks as `.preset` file to `%APPDATA%/hitsound-daw-wx/Presets/`
 
 #### ValidationErrorsDialog
 - Shows validation errors before save

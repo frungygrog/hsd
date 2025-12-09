@@ -24,21 +24,21 @@ MainFrame::MainFrame()
 {
     audioEngine.initialize();
     
-    // Load Default Samples
-    // Robustly find Resources folder
+    
+    
     juce::File exeDir = juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
     juce::File resourcesDir;
     
-    // Check 1: CWD
+    
     juce::File cwd = juce::File::getCurrentWorkingDirectory();
     if (cwd.getChildFile("Resources").exists())
         resourcesDir = cwd.getChildFile("Resources");
         
-    // Check 2: Up from Exe (build/Debug/../../Resources)
+    
     else if (exeDir.getParentDirectory().getParentDirectory().getChildFile("Resources").exists())
         resourcesDir = exeDir.getParentDirectory().getParentDirectory().getChildFile("Resources");
         
-    // Check 3: Up from Exe one Level (build/Resources?)
+    
     else if (exeDir.getParentDirectory().getChildFile("Resources").exists())
         resourcesDir = exeDir.getParentDirectory().getChildFile("Resources");
         
@@ -55,30 +55,30 @@ MainFrame::MainFrame()
     
     wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
     
-    // Splitter
+    
     splitter = new wxSplitterWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE);
     
-    // Left: TrackList
+    
     trackList = new TrackList(splitter);
     
-    // Right: TimelineView
+    
     timelineView = new TimelineView(splitter);
     
-    // Connect TrackList to TimelineView for reordering updates
+    
     trackList->SetTimelineView(timelineView);
     
-    // Transport Panel (Top)
+    
     transportPanel = new TransportPanel(this, &audioEngine, timelineView);
     mainSizer->Add(transportPanel, 0, wxEXPAND | wxALL, 5);
     
-    // Split
+    
     splitter->SplitVertically(trackList, timelineView, 250);
     splitter->SetMinimumPaneSize(100);
     
-    // Sync Scrolling: TrackList mirrors TimelineView's vertical scroll position
-    // We use multiple event types to ensure complete coverage
     
-    // Helper lambda to sync TrackList to TimelineView's scroll position
+    
+    
+    
     auto doSync = [this]() {
         int x, y;
         timelineView->GetViewStart(&x, &y);
@@ -88,9 +88,9 @@ MainFrame::MainFrame()
         trackList->SetVerticalScrollOffset(scrollPxY);
     };
     
-    // Scroll events
+    
     auto syncScrollEvt = [this, doSync](wxScrollWinEvent& evt) {
-        // Use CallAfter to ensure scroll position is updated before we read it
+        
         CallAfter(doSync);
         evt.Skip();
     };
@@ -104,51 +104,51 @@ MainFrame::MainFrame()
     timelineView->Bind(wxEVT_SCROLLWIN_THUMBTRACK, syncScrollEvt);
     timelineView->Bind(wxEVT_SCROLLWIN_THUMBRELEASE, syncScrollEvt);
     
-    // Mouse wheel - this is often missed by SCROLLWIN events
+    
     timelineView->Bind(wxEVT_MOUSEWHEEL, [this, doSync](wxMouseEvent& evt) {
         CallAfter(doSync);
         evt.Skip();
     });
     
-    // Paint event as failsafe - ensures sync whenever timeline repaints
+    
     timelineView->Bind(wxEVT_PAINT, [this, doSync](wxPaintEvent& evt) {
         doSync();
         evt.Skip();
     });
     
-    // Add splitter
+    
     mainSizer->Add(splitter, 1, wxEXPAND);
     SetSizer(mainSizer);
     
-    // Loop Callback
+    
     timelineView->OnLoopPointsChanged = [this](double start, double end) {
         audioEngine.SetLoopPoints(start, end);
     };
     
-    // Zoom Callback
+    
     timelineView->OnZoomChanged = [this](double pixelsPerSecond) {
         transportPanel->SetZoomLevel(pixelsPerSecond);
     };
     
-    // Tracks Modified Callback - sync audio thread snapshot
+    
     timelineView->OnTracksModified = [this]() {
         audioEngine.NotifyTracksChanged();
     };
     
-    // Playhead Scrubbed Callback - sync audio position when user drags playhead
+    
     timelineView->OnPlayheadScrubbed = [this](double time) {
         audioEngine.SetPosition(time);
         transportPanel->UpdateTime(time);
     };
 
-    playbackTimer.Start(30); // 30ms interval (~30fps)
+    playbackTimer.Start(30); 
 }
 
 void MainFrame::BuildMenu()
 {
     wxMenuBar* menuBar = new wxMenuBar;
     
-    // File
+    
     wxMenu* fileMenu = new wxMenu;
     fileMenu->Append(wxID_OPEN, "&Open .osu File...\tCtrl+O", "Open an osu! file directly");
     fileMenu->Append(ID_OPEN_FOLDER, "Open Project &Folder...\tCtrl+Shift+O", "Open a beatmap folder");
@@ -159,7 +159,7 @@ void MainFrame::BuildMenu()
     fileMenu->Append(wxID_EXIT, "E&xit\tAlt+X", "Quit this program");
     menuBar->Append(fileMenu, "&File");
     
-    // Edit
+    
     wxMenu* editMenu = new wxMenu;
     editMenu->Append(ID_UNDO, "&Undo\tCtrl+Z");
     editMenu->Append(ID_REDO, "&Redo\tCtrl+Y");
@@ -172,16 +172,16 @@ void MainFrame::BuildMenu()
     editMenu->Append(ID_SELECT_ALL, "Select &All\tCtrl+A");
     menuBar->Append(editMenu, "&Edit");
     
-    // Transport
+    
     wxMenu* transportMenu = new wxMenu;
     transportMenu->Append(ID_PLAY_STOP, "Play/Stop\tSpace");
     transportMenu->Append(ID_REWIND, "Rewind to Start\tHome");
     menuBar->Append(transportMenu, "&Transport");
     
-    // Track
+    
     wxMenu* trackMenu = new wxMenu;
     
-    // Preset Submenu
+    
     wxMenu* presetSubMenu = new wxMenu;
     presetSubMenu->Append(ID_PRESET_GENERIC, "Generic", "Load the generic hitsound preset");
     trackMenu->AppendSubMenu(presetSubMenu, "Load Preset");
@@ -191,7 +191,7 @@ void MainFrame::BuildMenu()
     
     SetMenuBar(menuBar);
     
-    // Bind Events
+    
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ timelineView->Undo(); }, ID_UNDO);
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ timelineView->Redo(); }, ID_REDO);
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ timelineView->CutSelection(); }, ID_CUT);
@@ -201,7 +201,7 @@ void MainFrame::BuildMenu()
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ timelineView->SelectAll(); }, ID_SELECT_ALL);
     
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->TogglePlayback(); }, ID_PLAY_STOP);
-    Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->Stop(); }, ID_REWIND); // Reusing Stop logic which rewinds
+    Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->Stop(); }, ID_REWIND); 
     
     Bind(wxEVT_MENU, &MainFrame::OnLoadPreset, this, ID_LOAD_PRESET);
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ ApplyPreset("Generic"); }, ID_PRESET_GENERIC);
@@ -221,38 +221,38 @@ void MainFrame::OnOpen(wxCommandEvent& evt)
     juce::File file(openFileDialog.GetPath().ToStdString());
     project = OsuParser::parse(file);
     
-    // Validate
+    
     ProjectValidator::Validate(project);
     
     trackList->SetProject(&project);
     timelineView->SetProject(&project);
     
-    // Critical: Update AudioEngine
+    
     audioEngine.SetTracks(&project.tracks);
     
-    // Load Audio
+    
     juce::File audioFile = file.getParentDirectory().getChildFile(juce::String(project.audioFilename));
     if (audioFile.existsAsFile())
     {
         audioEngine.LoadMasterTrack(audioFile.getFullPathName().toStdString());
         
-        // Generate Waveform
-        // Calculate width needed: 4000 px for now
+        
+        
         int w = 4000; 
         auto peaks = audioEngine.GetWaveform(w); 
         double duration = audioEngine.GetDuration();
         timelineView->SetWaveform(peaks, duration);
     }
     
-    // Total height
-    // Total height calculation
-    // We need to be more precise for Scrollbar to work nicely.
-    // traverse to count expanded height?
-    // For now, heuristic: 
-    int totalHeight = 2000; // Default buffer
-    // Better: Helper in Project or TrackList to calculate total pixels?
-    // Let's iterate simply
-    int calculatedHeight = TrackLayout::HeaderHeight; // Header (Ruler + Master)
+    
+    
+    
+    
+    
+    int totalHeight = 2000; 
+    
+    
+    int calculatedHeight = TrackLayout::HeaderHeight; 
     std::function<void(Track&)> calcH = [&](Track& t) {
         calculatedHeight += TrackLayout::GetTrackHeight(t.isChildTrack);
         if (t.isExpanded && !t.children.empty()) {
@@ -260,16 +260,16 @@ void MainFrame::OnOpen(wxCommandEvent& evt)
         }
     };
     for (auto& t : project.tracks) calcH(t);
-    totalHeight = calculatedHeight + 200; // Buffer
+    totalHeight = calculatedHeight + 200; 
 
     double duration = 300.0;
     if (audioEngine.GetDuration() > 0) duration = audioEngine.GetDuration();
-    if (duration < 300.0) duration = 300.0; // Min size
+    if (duration < 300.0) duration = 300.0; 
     
-    int totalWidth = static_cast<int>(duration * 100.0) + 2000; // Extra buffer
+    int totalWidth = static_cast<int>(duration * 100.0) + 2000; 
     timelineView->SetVirtualSize(totalWidth, totalHeight);
     timelineView->SetScrollRate(10, 10);
-    // Note: TrackList is now a plain wxPanel that mirrors TimelineView's scroll via SetVerticalScrollOffset
+    
 }
 
 void MainFrame::OnOpenFolder(wxCommandEvent& evt)
@@ -281,7 +281,7 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
 
     juce::File dir(dirDialog.GetPath().ToStdString());
     
-    // Find .osu files
+    
     auto osuFiles = dir.findChildFiles(juce::File::findFiles, false, "*.osu");
     
     if (osuFiles.isEmpty())
@@ -307,12 +307,12 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
     }
     else
     {
-        // Start From Scratch
-        // Parse reference to get metadata for naming
+        
+        
         Project refProject = OsuParser::parse(referenceFile);
         
         std::string newFilename = refProject.artist + " - " + refProject.title + " (" + refProject.creator + ") [Hitsounds].osu";
-        // Basic sanitization could be useful but assuming OsuParser gives valid strings for now
+        
         
         juce::File targetFile = dir.getChildFile(newFilename);
         
@@ -333,12 +333,12 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
         }
     }
     
-    // Common Loading Logic
+    
     ProjectValidator::Validate(project);
     trackList->SetProject(&project);
     timelineView->SetProject(&project);
     
-    // Critical: Update AudioEngine
+    
     audioEngine.SetTracks(&project.tracks);
     
     juce::File audioFile = dir.getChildFile(juce::String(project.audioFilename));
@@ -350,7 +350,7 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
         timelineView->SetWaveform(peaks, duration);
     }
 
-    // Recalculate Height
+    
     int calculatedHeight = TrackLayout::HeaderHeight; 
     std::function<void(Track&)> calcH = [&](Track& t) {
         calculatedHeight += TrackLayout::GetTrackHeight(t.isChildTrack);
@@ -370,7 +370,7 @@ void MainFrame::OnOpenFolder(wxCommandEvent& evt)
     timelineView->SetScrollRate(10, 10);
 }
 
-// void MainFrame::OnScrollTimeline(wxScrollWinEvent& evt) { ... } Removed/Replaced by lambda
+
 
 void MainFrame::OnTimer(wxTimerEvent& evt)
 {
@@ -392,13 +392,13 @@ void MainFrame::OnLoadPreset(wxCommandEvent& evt)
         {
             if (result.isBuiltIn)
             {
-                // Handle built-in presets
+                
                 if (result.presetName.StartsWith("Generic"))
                     ApplyPreset("Generic");
             }
             else
             {
-                // Load custom preset from file
+                
                 wxString presetsDir = CreatePresetDialog::GetPresetsDirectory();
                 wxString filepath = presetsDir + wxFileName::GetPathSeparator() + result.presetName + ".preset";
                 
@@ -436,7 +436,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
 {
     if (presetName == "Generic")
     {
-        // Helper to create a standard track with parent + child at 60% volume
+        
         auto createTrack = [](const std::string& name, SampleSet bank, SampleType type) -> Track {
             Track parent;
             parent.name = name;
@@ -446,7 +446,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
             parent.isExpanded = false;
             parent.primaryChildIndex = 0;
             
-            // Get lowercase bank/type names for child
+            
             std::string sStr = (bank == SampleSet::Normal) ? "normal" : (bank == SampleSet::Soft ? "soft" : "drum");
             std::string tStr;
             switch (type) {
@@ -468,7 +468,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
             return parent;
         };
         
-        // Create tracks
+        
         project.tracks.push_back(createTrack("Kick", SampleSet::Normal, SampleType::HitNormal));
         project.tracks.push_back(createTrack("Hi-Hat", SampleSet::Drum, SampleType::HitNormal));
         project.tracks.push_back(createTrack("Default", SampleSet::Soft, SampleType::HitNormal));
@@ -476,7 +476,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
         project.tracks.push_back(createTrack("Clap", SampleSet::Soft, SampleType::HitClap));
         project.tracks.push_back(createTrack("Crash", SampleSet::Soft, SampleType::HitFinish));
         
-        // Create Snare grouping (soft-hitnormal + soft-hitclap)
+        
         Track snare;
         snare.name = "Snare";
         snare.isGrouping = true;
@@ -484,7 +484,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
         snare.primaryChildIndex = 0;
         snare.gain = 1.0;
         
-        // Child with layers
+        
         Track snareChild;
         snareChild.name = "Snare (60%)";
         snareChild.sampleSet = SampleSet::Soft;
@@ -497,7 +497,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
         snare.children.push_back(snareChild);
         project.tracks.push_back(snare);
         
-        // Refresh UI
+        
         trackList->SetProject(&project);
         timelineView->SetProject(&project);
         timelineView->UpdateVirtualSize();
@@ -508,14 +508,14 @@ void MainFrame::ApplyPreset(const std::string& presetName)
 
 void MainFrame::OnSave(wxCommandEvent& evt)
 {
-    // Check if creator is "hsd" (watermarked) and we have a valid path
+    
     if (project.creator == "hsd" && !project.projectFilePath.empty())
     {
         PerformSave(juce::File(project.projectFilePath));
     }
     else
     {
-        // Otherwise clone/watermark via Save As
+        
         OnSaveAs(evt);
     }
 }
@@ -530,11 +530,11 @@ void MainFrame::OnSaveAs(wxCommandEvent& evt)
 
     juce::File file(saveFileDialog.GetPath().ToStdString());
 
-    // Update internal path
+    
     project.projectFilePath = file.getFullPathName().toStdString();
     project.projectDirectory = file.getParentDirectory().getFullPathName().toStdString();
     
-    // We act as if this is now an hsd project
+    
     project.creator = "hsd";
 
     PerformSave(file);
@@ -542,17 +542,17 @@ void MainFrame::OnSaveAs(wxCommandEvent& evt)
 
 bool MainFrame::PerformSave(const juce::File& file)
 {
-    // 1. Validate
+    
     auto errors = ProjectValidator::Validate(project);
     
-    // DEBUG:
+    
     if (!errors.empty()) {
         wxMessageBox(wxString::Format("Found %llu errors.", errors.size()));
     } else {
-        // Maybe errors are empty?
+        
     }
     
-    // Refresh view to show validation colors
+    
     timelineView->Refresh();
     
     if (!errors.empty())
@@ -565,7 +565,7 @@ bool MainFrame::PerformSave(const juce::File& file)
         }
     }
     
-    // 2. Save
+    
     if (ProjectSaver::SaveProject(project, file))
     {
         timelineView->GetUndoManager().MarkClean();
@@ -581,7 +581,7 @@ bool MainFrame::PerformSave(const juce::File& file)
 
 void MainFrame::OnClose(wxCloseEvent& evt)
 {
-    // Check if there are unsaved changes
+    
     if (timelineView && timelineView->GetUndoManager().IsDirty())
     {
         int result = wxMessageBox(
@@ -592,14 +592,14 @@ void MainFrame::OnClose(wxCloseEvent& evt)
         
         if (result == wxYES)
         {
-            // Try to save
+            
             wxCommandEvent dummy;
             OnSave(dummy);
             
-            // Check if save was successful (still dirty = save failed or cancelled)
+            
             if (timelineView->GetUndoManager().IsDirty())
             {
-                // Save was not completed, cancel close
+                
                 evt.Veto();
                 return;
             }
@@ -609,8 +609,8 @@ void MainFrame::OnClose(wxCloseEvent& evt)
             evt.Veto();
             return;
         }
-        // wxNO: proceed to close without saving
+        
     }
     
-    evt.Skip(); // Allow default close behavior
+    evt.Skip(); 
 }

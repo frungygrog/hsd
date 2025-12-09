@@ -17,7 +17,7 @@ public:
     
     Result GetResult() const { return result; }
     
-    // Static helper to get presets directory
+    
     static wxString GetPresetsDirectory();
     
 private:

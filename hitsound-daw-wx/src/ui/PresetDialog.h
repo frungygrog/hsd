@@ -13,12 +13,12 @@ public:
     struct Result {
         bool confirmed = false;
         wxString presetName;
-        bool isBuiltIn = true;  // True for "Generic", false for custom presets
+        bool isBuiltIn = true;  
     };
     
     Result GetResult() const { return result; }
     
-    // Load a custom preset from file - returns tracks to add
+    
     static std::vector<Track> LoadPresetFromFile(const wxString& filepath);
     
 private:
@@ -28,7 +28,7 @@ private:
     wxChoice* presetChoice;
     Result result;
     wxArrayString presetNames;
-    wxArrayString presetPaths;  // Empty for built-in
+    wxArrayString presetPaths;  
     
     wxDECLARE_EVENT_TABLE();
 };

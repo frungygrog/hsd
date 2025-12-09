@@ -15,11 +15,11 @@ wxBEGIN_EVENT_TABLE(TimelineView, wxScrolledWindow)
     EVT_KEY_DOWN(TimelineView::OnKeyDown)
 wxEND_EVENT_TABLE()
 
-// Use constants from Constants.h via TrackLayout namespace
 
-// -----------------------------------------------------------------------------
-// Constructor and Basic Methods
-// -----------------------------------------------------------------------------
+
+
+
+
 
 TimelineView::TimelineView(wxWindow* parent)
     : wxScrolledWindow(parent, wxID_ANY)
@@ -62,9 +62,9 @@ double TimelineView::xToTime(int x) const
     return static_cast<double>(x) / pixelsPerSecond;
 }
 
-// -----------------------------------------------------------------------------
-// Painting Helpers
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineView::DrawRuler(wxDC& dc, const wxSize& size, double visStart, double visEnd)
 {
@@ -94,7 +94,7 @@ void TimelineView::DrawMasterTrack(wxDC& dc, const wxSize& size, int viewStartPx
     dc.SetBrush(wxBrush(wxColour(20, 20, 25)));
     dc.DrawRectangle(0, masterY, size.x, masterTrackHeight);
     
-    // Draw Waveform
+    
     if (!waveformPeaks.empty() && audioDuration > 0)
     {
         dc.SetPen(wxPen(wxColour(100, 150, 200), 1));
@@ -147,7 +147,7 @@ void TimelineView::DrawTrackBackgrounds(wxDC& dc, const wxSize& size, const std:
 
 void TimelineView::DrawGrid(wxDC& dc, const wxSize& size, double visStart, double visEnd)
 {
-    // Horizontal grid lines
+    
     std::vector<Track*> visible = GetVisibleTracks();
     int gy = headerHeight;
     dc.SetPen(wxPen(wxColour(60, 60, 60)));
@@ -161,7 +161,7 @@ void TimelineView::DrawGrid(wxDC& dc, const wxSize& size, double visStart, doubl
     double totalSeconds = size.x / pixelsPerSecond;
     if (totalSeconds < 1.0) totalSeconds = 10.0;
     
-    // Vertical grid lines based on timing points
+    
     if (project && !project->timingPoints.empty())
     {
         std::vector<const Project::TimingPoint*> sections;
@@ -256,7 +256,7 @@ void TimelineView::DrawEvents(wxDC& dc, const std::vector<Track*>& visibleTracks
                     if (event.time < visStart - 0.5 || event.time > visEnd + 0.5) continue;
                     int x = timeToX(event.time);
                     
-                    // Check selection using track ID and event ID
+                    
                     bool isSelected = selection.count({srcTrack->id, event.id}) > 0;
                     
                     if (isSelected)
@@ -345,7 +345,7 @@ void TimelineView::DrawDragGhosts(wxDC& dc, const std::vector<Track*>& visible)
         
         for (const auto& ghost : dragGhosts)
         {
-            // Resolve target track from ID
+            
             uint64_t targetId = ghost.targetTrackId != 0 ? ghost.targetTrackId : ghost.originalTrackId;
             bool match = (t->id == targetId);
             if (!match && !t->isExpanded && !t->children.empty())
@@ -439,7 +439,7 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
     
     std::vector<Track*> visibleTracks = GetVisibleTracks();
     
-    // Draw in order
+    
     DrawRuler(dc, size, visStart, visEnd);
     DrawMasterTrack(dc, size, viewStartPx, viewEndPx);
     DrawTrackBackgrounds(dc, size, visibleTracks);
@@ -452,9 +452,9 @@ void TimelineView::OnPaint(wxPaintEvent& evt)
     DrawPlayhead(dc, size);
 }
 
-// -----------------------------------------------------------------------------
-// Event Placement Helper
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineView::PlaceEvent(Track* target, double time)
 {
@@ -474,7 +474,7 @@ void TimelineView::PlaceEvent(Track* target, double time)
         );
         
         if (hitnormalTrack) {
-            // Check if ANY hitnormal already exists at this timestamp
+            
             bool hitnormalExists = false;
             for (auto& track : project->tracks) {
                 if (track.sampleType != SampleType::HitNormal) continue;
@@ -518,15 +518,15 @@ void TimelineView::PlaceEvent(Track* target, double time)
     controller.GetUndoManager().PushCommand(std::make_unique<AddEventCommand>(target, newEvent, refreshFn));
 }
 
-// -----------------------------------------------------------------------------
-// Mouse Event Helpers
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineView::HandleLeftDown(wxMouseEvent& evt, const wxPoint& pos)
 {
     SetFocus();
     
-    // Check Header (Ruler vs Master)
+    
     if (pos.y < rulerHeight)
     {
         int px = timeToX(playheadPosition);
@@ -558,7 +558,7 @@ void TimelineView::HandleLeftDown(wxMouseEvent& evt, const wxPoint& pos)
     
     if (hit.isValid())
     {
-        // Create ID-based selection key
+        
         std::pair<uint64_t, uint64_t> selId = {hit.logicalTrack->id, hit.logicalTrack->events[hit.eventIndex].id};
         
         if (!ctrl && selection.find(selId) == selection.end())
@@ -581,7 +581,7 @@ void TimelineView::HandleLeftDown(wxMouseEvent& evt, const wxPoint& pos)
             
             dragGhosts.clear();
             
-            // Group selected events by track ID, find events by their IDs
+            
             std::map<uint64_t, std::vector<uint64_t>> toRemoveByTrack;
             for (auto& sel : selection) {
                 toRemoveByTrack[sel.first].push_back(sel.second);
@@ -609,7 +609,7 @@ void TimelineView::HandleLeftDown(wxMouseEvent& evt, const wxPoint& pos)
                 int rowIndex = findRowIndex(t);
                 if (rowIndex == -1) rowIndex = 0;
                 
-                // Find event indices from IDs and sort in reverse
+                
                 std::vector<int> indices;
                 for (uint64_t eventId : pair.second) {
                     for (int i = 0; i < (int)t->events.size(); ++i) {
@@ -765,7 +765,7 @@ void TimelineView::HandleLeftUp(wxMouseEvent& evt, const wxPoint& pos)
     {
         selection.clear();
         
-        // Restore originals temporarily using ID lookup
+        
         for (const auto& g : dragGhosts) {
             Track* origTrack = FindTrackById(g.originalTrackId);
             if (!origTrack) continue;
@@ -775,7 +775,7 @@ void TimelineView::HandleLeftUp(wxMouseEvent& evt, const wxPoint& pos)
             origTrack->events.push_back(origEvt);
         }
         
-        // Build Move Command
+        
         std::vector<MoveEventsCommand::MoveInfo> moves;
         for (auto& g : dragGhosts)
         {
@@ -794,10 +794,10 @@ void TimelineView::HandleLeftUp(wxMouseEvent& evt, const wxPoint& pos)
         auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
         controller.GetUndoManager().PushCommand(std::make_unique<MoveEventsCommand>(moves, refreshFn));
         
-        // Re-select moved events using IDs
+        
         selection.clear();
         for (auto& m : moves) {
-            // Find the event by matching the event ID
+            
             for (const auto& evt : m.newTrack->events) {
                 if (evt.id == m.newEvent.id) {
                     selection.insert({m.newTrack->id, evt.id});
@@ -862,9 +862,9 @@ void TimelineView::OnMouseEvents(wxMouseEvent& evt)
     evt.Skip();
 }
 
-// -----------------------------------------------------------------------------
-// Helper Functions (unchanged from original)
-// -----------------------------------------------------------------------------
+
+
+
 
 void CollectVisibleTracks(std::vector<Track*>& out, std::vector<Track>& tracks)
 {
@@ -1059,9 +1059,9 @@ double TimelineView::SnapToGrid(double time)
     return std::max(0.0, snapped);
 }
 
-// -----------------------------------------------------------------------------
-// Keyboard and Clipboard Operations (unchanged from original)
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineView::OnKeyDown(wxKeyEvent& evt)
 {
@@ -1125,13 +1125,13 @@ void TimelineView::CopySelection()
     double minTime = std::numeric_limits<double>::max();
     int minRow = std::numeric_limits<int>::max();
     
-    // First pass: find min time and row
+    
     for (const auto& sel : selection)
     {
         Track* track = FindTrackById(sel.first);
         if (!track) continue;
         
-        // Find event by ID
+        
         for (const auto& evt : track->events) {
             if (evt.id == sel.second) {
                 int row = findRowIndex(track);
@@ -1142,7 +1142,7 @@ void TimelineView::CopySelection()
         }
     }
     
-    // Second pass: build clipboard items
+    
     for (const auto& sel : selection)
     {
         Track* track = FindTrackById(sel.first);
@@ -1236,7 +1236,7 @@ void TimelineView::PasteAtPlayhead()
     if (!itemsToPaste.empty())
     {
         auto selCallback = [this](const std::vector<Track*>&) {
-            // Optionally re-select pasted items
+            
         };
         auto refreshFn = [this](){ ValidateHitsounds(); Refresh(); };
         controller.GetUndoManager().PushCommand(std::make_unique<PasteEventsCommand>(itemsToPaste, selCallback, refreshFn));
@@ -1265,9 +1265,9 @@ void TimelineView::DeleteSelection()
     controller.GetUndoManager().PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
 }
 
-// -----------------------------------------------------------------------------
-// Zoom and Virtual Size
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineView::OnMouseWheel(wxMouseEvent& evt)
 {
@@ -1362,7 +1362,7 @@ void TimelineView::ValidateHitsounds()
 {
     if (!project) return;
     
-    // Use ProjectValidator to validate hitsounds
+    
     ProjectValidator::Validate(*project);
     
     if (OnTracksModified) OnTracksModified();

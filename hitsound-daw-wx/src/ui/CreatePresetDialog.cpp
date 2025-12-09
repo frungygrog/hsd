@@ -15,11 +15,11 @@ wxEND_EVENT_TABLE()
 
 wxString CreatePresetDialog::GetPresetsDirectory()
 {
-    // Store presets in user data directory
+    
     wxString userDir = wxStandardPaths::Get().GetUserDataDir();
     wxString presetsDir = userDir + wxFileName::GetPathSeparator() + "Presets";
     
-    // Create directory if it doesn't exist
+    
     if (!wxDirExists(presetsDir))
     {
         wxDir::Make(presetsDir, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
@@ -36,12 +36,12 @@ CreatePresetDialog::CreatePresetDialog(wxWindow* parent, const std::vector<Track
     
     wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
     
-    // Description
+    
     wxStaticText* desc = new wxStaticText(this, wxID_ANY, 
         "Save your current track layout as a reusable preset.\nThe preset will include all tracks, groupings, and volume settings.");
     mainSizer->Add(desc, 0, wxALL, 15);
     
-    // Name input
+    
     wxBoxSizer* nameSizer = new wxBoxSizer(wxHORIZONTAL);
     nameSizer->Add(new wxStaticText(this, wxID_ANY, "Preset Name:"), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
     
@@ -52,7 +52,7 @@ CreatePresetDialog::CreatePresetDialog(wxWindow* parent, const std::vector<Track
     
     mainSizer->AddSpacer(20);
     
-    // Buttons
+    
     wxBoxSizer* btnSizer = new wxBoxSizer(wxHORIZONTAL);
     btnSizer->AddStretchSpacer();
     btnSizer->Add(new wxButton(this, wxID_OK, "Save"), 0, wxRIGHT, 5);
@@ -76,7 +76,7 @@ void CreatePresetDialog::OnOK(wxCommandEvent& evt)
         return;
     }
     
-    // Check for invalid characters
+    
     if (name.Contains("/") || name.Contains("\\") || name.Contains(":") || 
         name.Contains("*") || name.Contains("?") || name.Contains("\"") ||
         name.Contains("<") || name.Contains(">") || name.Contains("|"))
@@ -98,7 +98,7 @@ bool CreatePresetDialog::SavePreset(const wxString& name, const std::vector<Trac
     wxString presetsDir = GetPresetsDirectory();
     wxString filepath = presetsDir + wxFileName::GetPathSeparator() + name + ".preset";
     
-    // Check if file already exists
+    
     if (wxFileExists(filepath))
     {
         int answer = wxMessageBox("A preset with this name already exists. Overwrite?", 
@@ -107,12 +107,12 @@ bool CreatePresetDialog::SavePreset(const wxString& name, const std::vector<Trac
             return false;
     }
     
-    // Build preset content
+    
     std::ostringstream ss;
     ss << "# Hitsound DAW Preset\n";
     ss << "# Created by hsd\n\n";
     
-    // Serialize tracks in a simple format
+    
     for (const auto& track : tracks)
     {
         ss << "[Track]\n";
@@ -124,7 +124,7 @@ bool CreatePresetDialog::SavePreset(const wxString& name, const std::vector<Trac
         ss << "isExpanded=" << (track.isExpanded ? 1 : 0) << "\n";
         ss << "primaryChildIndex=" << track.primaryChildIndex << "\n";
         
-        // Serialize layers
+        
         if (!track.layers.empty())
         {
             ss << "layers=";
@@ -136,7 +136,7 @@ bool CreatePresetDialog::SavePreset(const wxString& name, const std::vector<Trac
             ss << "\n";
         }
         
-        // Serialize children
+        
         for (const auto& child : track.children)
         {
             ss << "[Child]\n";
@@ -161,7 +161,7 @@ bool CreatePresetDialog::SavePreset(const wxString& name, const std::vector<Trac
         ss << "[/Track]\n\n";
     }
     
-    // Write to file
+    
     wxFile file(filepath, wxFile::write);
     if (!file.IsOpened())
     {

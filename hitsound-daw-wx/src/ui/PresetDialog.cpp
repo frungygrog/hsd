@@ -1,5 +1,5 @@
 #include "PresetDialog.h"
-#include "CreatePresetDialog.h"  // For GetPresetsDirectory()
+#include "CreatePresetDialog.h"  
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/button.h>
@@ -20,15 +20,15 @@ PresetDialog::PresetDialog(wxWindow* parent)
     
     wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
     
-    // Description
+    
     wxStaticText* desc = new wxStaticText(this, wxID_ANY, 
         "Select a preset to add tracks and groupings to your project:");
     mainSizer->Add(desc, 0, wxALL, 10);
     
-    // Refresh preset list
+    
     RefreshPresetList();
     
-    // Preset Dropdown
+    
     wxBoxSizer* choiceSizer = new wxBoxSizer(wxHORIZONTAL);
     choiceSizer->Add(new wxStaticText(this, wxID_ANY, "Preset:"), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
     
@@ -41,7 +41,7 @@ PresetDialog::PresetDialog(wxWindow* parent)
     
     mainSizer->AddSpacer(20);
     
-    // Buttons
+    
     wxBoxSizer* btnSizer = new wxBoxSizer(wxHORIZONTAL);
     btnSizer->AddStretchSpacer();
     btnSizer->Add(new wxButton(this, wxID_OK, "Load"), 0, wxRIGHT, 5);
@@ -58,11 +58,11 @@ void PresetDialog::RefreshPresetList()
     presetNames.Clear();
     presetPaths.Clear();
     
-    // Add built-in presets first
-    presetNames.Add("Generic (Built-in)");
-    presetPaths.Add("");  // Empty path means built-in
     
-    // Scan for custom presets
+    presetNames.Add("Generic (Built-in)");
+    presetPaths.Add("");  
+    
+    
     wxString presetsDir = CreatePresetDialog::GetPresetsDirectory();
     if (wxDirExists(presetsDir))
     {
@@ -148,7 +148,7 @@ std::vector<Track> PresetDialog::LoadPresetFromFile(const wxString& filepath)
             continue;
         }
         
-        // Parse key=value
+        
         int eqPos = line.Find('=');
         if (eqPos == wxNOT_FOUND)
             continue;
@@ -176,7 +176,7 @@ std::vector<Track> PresetDialog::LoadPresetFromFile(const wxString& filepath)
             target->primaryChildIndex = wxAtoi(value);
         else if (key == "layers")
         {
-            // Parse layers: "bank,type;bank,type;..."
+            
             wxArrayString layerPairs;
             wxString layersStr = value;
             while (!layersStr.IsEmpty())

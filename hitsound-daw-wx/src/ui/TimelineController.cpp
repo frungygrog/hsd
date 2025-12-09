@@ -16,9 +16,9 @@ void TimelineController::SetProject(Project* p)
     lastFocusedTrackId = 0;
 }
 
-// -----------------------------------------------------------------------------
-// Selection
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineController::SelectEvent(uint64_t trackId, uint64_t eventId, bool addToSelection)
 {
@@ -94,9 +94,9 @@ void TimelineController::MergeWithBaseSelection(const std::set<std::pair<uint64_
     }
 }
 
-// -----------------------------------------------------------------------------
-// Clipboard
-// -----------------------------------------------------------------------------
+
+
+
 
 int TimelineController::FindRowIndex(Track* t, const std::vector<Track*>& visible)
 {
@@ -123,7 +123,7 @@ void TimelineController::CopySelection(const std::vector<Track*>& visibleTracks)
     double minTime = std::numeric_limits<double>::max();
     int minRow = std::numeric_limits<int>::max();
     
-    // First pass: find min time and row
+    
     for (const auto& sel : selection)
     {
         Track* track = FindTrackById(sel.first);
@@ -141,7 +141,7 @@ void TimelineController::CopySelection(const std::vector<Track*>& visibleTracks)
         }
     }
     
-    // Second pass: build clipboard items
+    
     for (const auto& sel : selection)
     {
         Track* track = FindTrackById(sel.first);
@@ -240,9 +240,9 @@ void TimelineController::DeleteSelection()
     undoManager.PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
 }
 
-// -----------------------------------------------------------------------------
-// Event Placement
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineController::PlaceEvent(Track* target, double time, std::optional<SampleSet> defaultHitnormalBank)
 {
@@ -256,7 +256,7 @@ void TimelineController::PlaceEvent(Track* target, double time, std::optional<Sa
     
     if (isAddition && defaultHitnormalBank.has_value())
     {
-        // Auto-hitnormal logic
+        
         bool hitnormalExists = false;
         for (auto& t : project->tracks)
         {
@@ -299,14 +299,14 @@ void TimelineController::PlaceEvent(Track* target, double time, std::optional<Sa
         }
     }
     
-    // Normal single event placement
+    
     auto refreshFn = [this](){ ValidateHitsounds(); if (OnDataChanged) OnDataChanged(); };
     undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvt, refreshFn));
 }
 
-// -----------------------------------------------------------------------------
-// Undo/Redo
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineController::Undo()
 {
@@ -340,9 +340,9 @@ std::string TimelineController::GetRedoDescription() const
     return undoManager.GetRedoDescription();
 }
 
-// -----------------------------------------------------------------------------
-// Dirty State
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineController::MarkClean()
 {
@@ -354,9 +354,9 @@ bool TimelineController::IsDirty() const
     return undoManager.IsDirty();
 }
 
-// -----------------------------------------------------------------------------
-// Validation
-// -----------------------------------------------------------------------------
+
+
+
 
 void TimelineController::ValidateHitsounds()
 {
@@ -366,9 +366,9 @@ void TimelineController::ValidateHitsounds()
     }
 }
 
-// -----------------------------------------------------------------------------
-// Track Helpers
-// -----------------------------------------------------------------------------
+
+
+
 
 Track* TimelineController::FindTrackById(uint64_t id)
 {
@@ -391,25 +391,25 @@ Track* TimelineController::FindOrCreateHitnormalTrack(SampleSet bank, double vol
 {
     if (!project) return nullptr;
     
-    // Look for existing track with matching bank and volume
+    
     for (auto& t : project->tracks)
     {
         if (t.sampleType == SampleType::HitNormal && t.sampleSet == bank)
         {
-            // Check children for matching volume
+            
             for (auto& child : t.children)
             {
                 if (std::abs(child.gain - volume) < 0.01)
                     return &child;
             }
             
-            // No matching volume, use primary child if we match bank
+            
             if (!t.children.empty() && t.primaryChildIndex < (int)t.children.size())
                 return &t.children[t.primaryChildIndex];
         }
     }
     
-    // Create new track
+    
     std::string bankStr = (bank == SampleSet::Normal) ? "normal" : (bank == SampleSet::Soft ? "soft" : "drum");
     int volPct = (int)(volume * 100);
     

@@ -11,11 +11,9 @@ ProjectSetupDialog::ProjectSetupDialog(wxWindow* parent, const std::vector<std::
 {
     wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
     
-    // Description
     wxStaticText* label = new wxStaticText(this, wxID_ANY, "How would you like to start?");
     mainSizer->Add(label, 0, wxALL, 10);
     
-    // Radio Box
     wxArrayString choices;
     choices.Add("Open Existing Difficulty");
     choices.Add("Start from Scratch (Hitsounds)");
@@ -23,7 +21,6 @@ ProjectSetupDialog::ProjectSetupDialog(wxWindow* parent, const std::vector<std::
     actionRadio = new wxRadioBox(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, choices, 1, wxRA_SPECIFY_COLS);
     mainSizer->Add(actionRadio, 0, wxEXPAND | wxALL, 10);
     
-    // File Selection
     wxStaticText* fileLabel = new wxStaticText(this, wxID_ANY, "Select Difficulty / Reference:");
     mainSizer->Add(fileLabel, 0, wxLEFT | wxRIGHT | wxTOP, 10);
     
@@ -35,7 +32,6 @@ ProjectSetupDialog::ProjectSetupDialog(wxWindow* parent, const std::vector<std::
     
     mainSizer->Add(fileChoice, 0, wxEXPAND | wxALL, 10);
     
-    // Buttons
     wxSizer* buttonSizer = CreateButtonSizer(wxOK | wxCANCEL);
     mainSizer->Add(buttonSizer, 0, wxALIGN_RIGHT | wxALL, 10);
     
@@ -63,7 +59,7 @@ void ProjectSetupDialog::OnRadioChange(wxCommandEvent& evt)
 
 void ProjectSetupDialog::OnOK(wxCommandEvent& evt)
 {
-    // Store selection
+    
     int sel = actionRadio->GetSelection();
     if (sel == 0) selectedAction = Action::OpenExisting;
     else selectedAction = Action::StartFromScratch;
@@ -72,5 +68,5 @@ void ProjectSetupDialog::OnOK(wxCommandEvent& evt)
     if (fileSel >= 0 && fileSel < files.size())
         selectedFilename = files[fileSel];
         
-    evt.Skip(); // Allow dialog to close
+    evt.Skip(); 
 }

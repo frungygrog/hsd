@@ -2,7 +2,7 @@
 #include <wx/wx.h>
 #include "../model/SampleTypes.h"
 
-// Define a struct or pass pointers to return selected values
+
 struct AddTrackResult {
     wxString name;
     SampleSet bank;
@@ -18,7 +18,7 @@ public:
     
     AddTrackResult GetResult() const { return result; }
     
-    // For edit mode: pre-populate fields
+    
     void SetValues(const wxString& name, SampleSet bank, SampleType type, int volume);
     void SetEditMode(bool edit);
     

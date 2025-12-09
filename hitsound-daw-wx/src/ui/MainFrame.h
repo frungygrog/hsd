@@ -20,7 +20,7 @@ public:
         ID_SAVE_AS,
         ID_PLAYBACK_TIMER = 10002,
         
-        // Edit
+        
         ID_UNDO = 10100,
         ID_REDO,
         ID_CUT,
@@ -29,11 +29,11 @@ public:
         ID_DELETE_SELECTION,
         ID_SELECT_ALL,
         
-        // Transport
+        
         ID_PLAY_STOP = 10200,
         ID_REWIND,
         
-        // Track
+        
         ID_LOAD_PRESET = 10300,
         ID_PRESET_GENERIC,
         ID_CREATE_PRESET
@@ -42,7 +42,7 @@ public:
 private:
     void BuildMenu();
 
-    // Event Handlers
+    
     void OnOpen(wxCommandEvent& evt);
     void OnOpenFolder(wxCommandEvent& evt);
     void OnSave(wxCommandEvent& evt);
@@ -54,10 +54,10 @@ private:
     void OnClose(wxCloseEvent& evt);
     void ApplyPreset(const std::string& presetName);
 
-    // Helpers
+    
     bool PerformSave(const juce::File& file);
 
-    // UI Elements
+    
     wxSplitterWindow* splitter;
     TrackList* trackList;
     TimelineView* timelineView;
@@ -65,7 +65,7 @@ private:
 
     wxTimer playbackTimer;
 
-    // Core Systems
+    
     AudioEngine audioEngine;
     Project project;
 
