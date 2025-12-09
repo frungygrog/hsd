@@ -243,7 +243,6 @@ void TransportPanel::OnToolSelect(wxCommandEvent& evt)
 {
     btnToolSelect->SetValue(true);
     btnToolDraw->SetValue(false);
-    // btnToolErase->SetValue(false);
     if (timelineView) timelineView->SetTool(ToolType::Select);
 }
 
@@ -251,11 +250,8 @@ void TransportPanel::OnToolDraw(wxCommandEvent& evt)
 {
     btnToolSelect->SetValue(false);
     btnToolDraw->SetValue(true);
-    // btnToolErase->SetValue(false);
     if (timelineView) timelineView->SetTool(ToolType::Draw);
 }
-
-// OnToolErase removed
 
 void TransportPanel::OnSnapChange(wxCommandEvent& evt)
 {

@@ -3,6 +3,7 @@
 #include <map>
 #include <vector>
 #include <cmath>
+#include <functional>
 
 class ProjectValidator
 {
@@ -24,14 +25,24 @@ public:
         
         std::map<long long, TimeSlice> slices;
         
-        for (auto& track : project.tracks)
-        {
+        // Recursive helper to collect events from all tracks (including children)
+        std::function<void(Track&)> collectEvents = [&](Track& track) {
             for (auto& event : track.events)
             {
                 long long timeMs = (long long)(event.time * 1000.0 + 0.5);
                 slices[timeMs].events.push_back(&event);
                 slices[timeMs].tracks.push_back(&track);
             }
+            // Recursively collect from children
+            for (auto& child : track.children)
+            {
+                collectEvents(child);
+            }
+        };
+        
+        for (auto& track : project.tracks)
+        {
+            collectEvents(track);
         }
         
         // Validate each slice

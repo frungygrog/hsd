@@ -556,32 +556,27 @@ void TimelineView::OnMouseEvents(wxMouseEvent& evt)
                     std::vector<int>& indices = pair.second;
                     std::sort(indices.rbegin(), indices.rend());
                     
-                    // Find Visual Row Index
+                    // Find Visual Row Index using helper lambda
                     // If t is in visible, use it.
                     // If t is not in visible, check if it's a child of a collapsed visible track.
-                    int rowIndex = -1;
-                    
-                    for(int r=0; r<(int)visible.size(); ++r) 
-                    {
-                        if(visible[r] == t) 
-                        { 
-                            rowIndex = r; 
-                            break; 
-                        }
-                        // Check children if collapsed
-                        if (!visible[r]->isExpanded) 
-                        {
-                            for(const auto& child : visible[r]->children) 
-                            {
-                                if (&child == t) 
-                                { 
-                                    rowIndex = r; 
-                                    goto found_row; 
+                    auto findRowIndex = [&visible](Track* target) -> int {
+                        for (int r = 0; r < (int)visible.size(); ++r) {
+                            if (visible[r] == target) {
+                                return r;
+                            }
+                            // Check children if collapsed
+                            if (!visible[r]->isExpanded) {
+                                for (const auto& child : visible[r]->children) {
+                                    if (&child == target) {
+                                        return r;
+                                    }
                                 }
                             }
                         }
-                    }
-                    found_row:;
+                        return -1;
+                    };
+                    
+                    int rowIndex = findRowIndex(t);
 
                     // If row index is -1, something is weird (maybe track hidden?), but we can default to 0 or something safe.
                     if (rowIndex == -1) rowIndex = 0;
@@ -702,6 +697,7 @@ void TimelineView::OnMouseEvents(wxMouseEvent& evt)
         {
              double t = SnapToGrid(xToTime(pos.x));
              SetPlayheadPosition(t);
+             if (OnPlayheadScrubbed) OnPlayheadScrubbed(t);
         }
         else if (isDraggingLoop)
         {
@@ -800,6 +796,8 @@ void TimelineView::OnMouseEvents(wxMouseEvent& evt)
     {
         if (isDraggingPlayhead)
         {
+            // Final scrub - ensure position is synced
+            if (OnPlayheadScrubbed) OnPlayheadScrubbed(playheadPosition);
             isDraggingPlayhead = false;
         }
         else if (isDraggingLoop)

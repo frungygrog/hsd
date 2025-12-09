@@ -90,28 +90,6 @@ void AudioEngine::SetLoopPoints(double start, double end)
     loopEnd = end;
 }
 
-void AudioEngine::audioDeviceIOCallbackWithContext(const float* const* inputChannelData,
-                                      int numInputChannels,
-                                      float* const* outputChannelData,
-                                      int numOutputChannels,
-                                      int numSamples,
-                                      const juce::AudioIODeviceCallbackContext& context)
-{
-    // This is handled by audioSourcePlayer automatically usually.
-    // Since we registered audioSourcePlayer as callback, this might be redundant if we inherit AudioIODeviceCallback manually?
-    // Wait, AudioSourcePlayer IS an AudioIODeviceCallback.
-    // We don't need to manually implement this if we use AudioSourcePlayer.
-    // However, MainFrame might want to access this?
-    // Actually, we registered audioSourcePlayer in initialize(), so THAT handles the callback.
-    // The AudioEngine inherits AudioIODeviceCallback but we didn't register 'this'.
-    // So these methods are unused unless we register 'this'.
-    // We should probably NOT inherit AudioIODeviceCallback if we delegate to AudioSourcePlayer.
-    // But for ABI compatibility / future custom processing, we can leave it.
-}
-
-void AudioEngine::audioDeviceAboutToStart(juce::AudioIODevice* device) {}
-void AudioEngine::audioDeviceStopped() {}
-
 void AudioEngine::LoadMasterTrack(const std::string& path)
 {
     masterTransport.stop();

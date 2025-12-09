@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <atomic>
 #include "SampleTypes.h"
 
 // Tri-state validation for events
@@ -11,8 +12,13 @@ enum class ValidationState {
     Warning     // Warning state (pink) - e.g., addition without hitnormal backing
 };
 
+// Global unique ID generator for events
+inline std::atomic<uint64_t> g_nextEventId{1};
+
 struct Event
 {
+    uint64_t id = g_nextEventId++;  // Unique identifier for reliable undo/redo matching
+    
     double time; // Seconds or Milliseconds? Osu is ms. Let's use seconds internally for audio? Or ms for DAW UI?
                  // JUCE Audio usually uses samples or seconds.
                  // Osu files are integer ms.
@@ -53,7 +59,7 @@ struct Track
     // Hierarchy (for UI collapsible tracks)
     // Parent tracks might aggregated volume controls or types.
     std::vector<Track> children;
-    bool isExpanded = true;
+    bool isExpanded = false;
     
     // For drag-and-drop routing when collapsed
     int primaryChildIndex = 0;

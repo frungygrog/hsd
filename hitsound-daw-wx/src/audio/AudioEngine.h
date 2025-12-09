@@ -9,7 +9,7 @@
 #include <memory>
 #include <vector>
 
-class AudioEngine : public juce::AudioIODeviceCallback, public juce::HighResolutionTimer
+class AudioEngine : public juce::HighResolutionTimer
 {
 public:
     AudioEngine();
@@ -25,17 +25,6 @@ public:
     double GetPosition() const;
     double GetDuration() const;
     
-    // AudioIODeviceCallback implementation
-    void audioDeviceIOCallbackWithContext(const float* const* inputChannelData,
-                                          int numInputChannels,
-                                          float* const* outputChannelData,
-                                          int numOutputChannels,
-                                          int numSamples,
-                                          const juce::AudioIODeviceCallbackContext& context) override;
-    
-    void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
-    void audioDeviceStopped() override;
-
     // HighResolutionTimer
     void hiResTimerCallback() override;
 
@@ -73,5 +62,8 @@ private:
     double loopStart = 0.0;
     double loopEnd = 0.0;
     
-    double masterOffset = -0.029; // Fixed offset for now as requested
+    // Audio latency compensation offset (in seconds).
+    // Negative value shifts events earlier to account for audio processing delay.
+    // TODO: Consider making this configurable via settings if different systems need different values.
+    double masterOffset = -0.029;
 };

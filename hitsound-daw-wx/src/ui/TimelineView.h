@@ -29,6 +29,9 @@ public:
     // Callback when tracks are modified (events added/removed/moved) - for audio thread sync
     std::function<void()> OnTracksModified;
     
+    // Callback when user scrubs the playhead (drag in ruler/master area)
+    std::function<void(double time)> OnPlayheadScrubbed;
+    
     void SetProject(Project* p);
     void SetTool(ToolType tool) { currentTool = tool; }
     void SetPlayheadPosition(double time);

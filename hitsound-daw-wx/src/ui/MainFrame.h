@@ -32,7 +32,9 @@ public:
         ID_REWIND,
         
         // Track
-        ID_LOAD_PRESET = 10300
+        ID_LOAD_PRESET = 10300,
+        ID_PRESET_GENERIC,
+        ID_CREATE_PRESET
     };
     
 private:
@@ -44,6 +46,7 @@ private:
     void OnScrollTimeline(wxScrollWinEvent& evt);
     void OnTimer(wxTimerEvent& evt);
     void OnLoadPreset(wxCommandEvent& evt);
+    void OnCreatePreset(wxCommandEvent& evt);
     void ApplyPreset(const std::string& presetName);
 
     // UI Elements

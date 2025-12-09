@@ -1,6 +1,7 @@
 #include "MainFrame.h"
 #include "../model/ProjectValidator.h"
 #include "PresetDialog.h"
+#include "CreatePresetDialog.h"
 #include <juce_audio_devices/juce_audio_devices.h>
 #include "ProjectSetupDialog.h"
 #include "../io/OsuParser.h"
@@ -127,6 +128,12 @@ MainFrame::MainFrame()
     timelineView->OnTracksModified = [this]() {
         audioEngine.NotifyTracksChanged();
     };
+    
+    // Playhead Scrubbed Callback - sync audio position when user drags playhead
+    timelineView->OnPlayheadScrubbed = [this](double time) {
+        audioEngine.SetPosition(time);
+        transportPanel->UpdateTime(time);
+    };
 
     playbackTimer.Start(30); // 30ms interval (~30fps)
 }
@@ -164,7 +171,13 @@ void MainFrame::BuildMenu()
     
     // Track
     wxMenu* trackMenu = new wxMenu;
-    trackMenu->Append(ID_LOAD_PRESET, "Load &Preset...", "Load a track preset");
+    
+    // Preset Submenu
+    wxMenu* presetSubMenu = new wxMenu;
+    presetSubMenu->Append(ID_PRESET_GENERIC, "Generic", "Load the generic hitsound preset");
+    trackMenu->AppendSubMenu(presetSubMenu, "Load Preset");
+    
+    trackMenu->Append(ID_CREATE_PRESET, "Create Preset...", "Create a new preset from current tracks");
     menuBar->Append(trackMenu, "Trac&k");
     
     SetMenuBar(menuBar);
@@ -182,6 +195,8 @@ void MainFrame::BuildMenu()
     Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->Stop(); }, ID_REWIND); // Reusing Stop logic which rewinds
     
     Bind(wxEVT_MENU, &MainFrame::OnLoadPreset, this, ID_LOAD_PRESET);
+    Bind(wxEVT_MENU, [this](wxCommandEvent&){ ApplyPreset("Generic"); }, ID_PRESET_GENERIC);
+    Bind(wxEVT_MENU, &MainFrame::OnCreatePreset, this, ID_CREATE_PRESET);
 }
 
 void MainFrame::OnOpen(wxCommandEvent& evt)
@@ -369,6 +384,12 @@ void MainFrame::OnLoadPreset(wxCommandEvent& evt)
     }
 }
 
+void MainFrame::OnCreatePreset(wxCommandEvent& evt)
+{
+    CreatePresetDialog dlg(this);
+    dlg.ShowModal();
+}
+
 void MainFrame::ApplyPreset(const std::string& presetName)
 {
     if (presetName == "Generic")
@@ -380,7 +401,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
             parent.sampleSet = bank;
             parent.sampleType = type;
             parent.gain = 1.0;
-            parent.isExpanded = true;
+            parent.isExpanded = false;
             parent.primaryChildIndex = 0;
             
             // Get lowercase bank/type names for child
@@ -417,7 +438,7 @@ void MainFrame::ApplyPreset(const std::string& presetName)
         Track snare;
         snare.name = "Snare";
         snare.isGrouping = true;
-        snare.isExpanded = true;
+        snare.isExpanded = false;
         snare.primaryChildIndex = 0;
         snare.gain = 1.0;
         

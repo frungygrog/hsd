@@ -33,6 +33,7 @@ FetchContent_MakeAvailable(JUCE)
 # --- Main Executable ---
 add_executable(hitsound-daw-wx
     src/main.cpp
+    src/Constants.h
     src/ui/MainFrame.cpp
     src/ui/MainFrame.h
     src/ui/TimelineView.cpp
@@ -49,6 +50,8 @@ add_executable(hitsound-daw-wx
     src/ui/ProjectSetupDialog.h
     src/ui/PresetDialog.cpp
     src/ui/PresetDialog.h
+    src/ui/CreatePresetDialog.cpp
+    src/ui/CreatePresetDialog.h
     src/audio/AudioEngine.cpp
     src/audio/AudioEngine.h
     src/audio/EventPlaybackSource.cpp
@@ -57,11 +60,13 @@ add_executable(hitsound-daw-wx
     src/audio/SampleRegistry.h
     src/model/SampleRef.h
     src/model/SampleTypes.h
+    src/model/Track.h
+    src/model/Project.h
+    src/model/Command.h
+    src/model/Commands.h
+    src/model/ProjectValidator.h
     src/io/OsuParser.cpp
     src/io/OsuParser.h
-    src/model/Track.h
-    src/model/HitObject.h
-    src/model/Project.h
 )
 
 # Link wxWidgets

@@ -151,5 +151,9 @@ The "Last Christmas" project demonstrates the complexity the system must handle.
     *   Child Track Height: 40px.
     *   Header Height: ~20-30px (Ruler).
 	
-## Note for agent.
+## IMPORTANT: Notes for agent.
 Do not attempt to build the project upon completing a task. The user will do so on their own accord.
+
+When you complete a task given, update the GEMINI.md (if you deem it as neccessary)
+
+When reading files/running other tool calls, have zero regard for your context window and/or token usage. There is no need to be efficient, knowing as much as possible about the project is most important.

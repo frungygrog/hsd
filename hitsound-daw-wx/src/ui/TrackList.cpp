@@ -616,32 +616,35 @@ void TrackList::OnPaint(wxPaintEvent& evt)
         }
         else
         {
-             // Child level
-             for (auto& t : project->tracks) {
-                 int h = t.isChildTrack ? 40 : 80;
-                 if (&t == currentDropTarget.parent)
-                 {
-                     curY += h; // Skip parent itself
-                     int cIdx = 0;
-                     for (auto& c : t.children) {
-                         if (cIdx == currentDropTarget.index) {
-                             targetY = curY;
-                             goto found_y;
+             // Child level - use helper lambda to find Y position
+             auto findChildTargetY = [&]() -> int {
+                 int y = curY;
+                 for (auto& t : project->tracks) {
+                     int h = t.isChildTrack ? 40 : 80;
+                     if (&t == currentDropTarget.parent)
+                     {
+                         y += h; // Skip parent itself
+                         int cIdx = 0;
+                         for (auto& c : t.children) {
+                             if (cIdx == currentDropTarget.index) {
+                                 return y;
+                             }
+                             y += 40;
+                             cIdx++;
                          }
-                         curY += 40;
-                         cIdx++;
+                         if (cIdx == currentDropTarget.index) return y; // End of child list
+                         return y; // Fallback
                      }
-                     if (cIdx == currentDropTarget.index) targetY = curY; // End of child list
-                     goto found_y;
+                     y += h;
+                     if (t.isExpanded) {
+                         for (auto& c : t.children) y += 40;
+                     }
                  }
-                 curY += h;
-                 if (t.isExpanded) {
-                     for (auto& c : t.children) curY += 40;
-                 }
-             }
+                 return y;
+             };
+             targetY = findChildTargetY();
         }
         
-        found_y:
         dc.SetPen(wxPen(wxColour(0, 255, 255), 2));
         dc.DrawLine(0, targetY, width, targetY);
     }
@@ -673,34 +676,37 @@ void TrackList::OnContextMenu(wxContextMenuEvent& evt)
     Track* foundParent = nullptr; 
     bool isChild = false;
     
-    for (auto& t : project->tracks)
-    {
-        int h = t.isChildTrack ? 40 : 80;
-        
-        if (y >= curY && y < curY + h)
+    // Helper lambda to find track at Y position
+    auto findTrackAtY = [&]() {
+        for (auto& t : project->tracks)
         {
-            foundTrack = &t;
-            isChild = false;
-            break;
-        }
-        curY += h;
-        
-        if (t.isExpanded)
-        {
-            for (auto& c : t.children)
+            int h = t.isChildTrack ? 40 : 80;
+            
+            if (y >= curY && y < curY + h)
             {
-                if (y >= curY && y < curY + 40)
+                foundTrack = &t;
+                isChild = false;
+                return;
+            }
+            curY += h;
+            
+            if (t.isExpanded)
+            {
+                for (auto& c : t.children)
                 {
-                    foundTrack = &c;
-                    foundParent = &t;
-                    isChild = true;
-                    goto found;
+                    if (y >= curY && y < curY + 40)
+                    {
+                        foundTrack = &c;
+                        foundParent = &t;
+                        isChild = true;
+                        return;
+                    }
+                    curY += 40;
                 }
-                curY += 40;
             }
         }
-    }
-found:
+    };
+    findTrackAtY();
 
     if (!foundTrack) return;
     
@@ -872,7 +878,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                                  newParent.name = parentName;
                                  newParent.sampleSet = res.bank;
                                  newParent.sampleType = res.type;
-                                 newParent.isExpanded = true;
+                                newParent.isExpanded = false;
                                  project->tracks.push_back(newParent);
                                  parent = &project->tracks.back();
                              }
@@ -898,7 +904,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                              
                              Refresh();
                              if (timelineView) timelineView->UpdateVirtualSize();
-                             GetParent()->Refresh(); 
+                             if (GetParent()) GetParent()->Refresh(); 
                          }
                      }
                      return; 
@@ -919,7 +925,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                              Track grouping;
                              grouping.name = res.name.ToStdString();
                              grouping.isGrouping = true;
-                             grouping.isExpanded = true;
+                             grouping.isExpanded = false;
                              grouping.mute = false;
                              grouping.solo = false;
                              grouping.gain = 1.0; 
@@ -946,7 +952,7 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                              
                              Refresh();
                              if (timelineView) timelineView->UpdateVirtualSize();
-                             GetParent()->Refresh(); 
+                             if (GetParent()) GetParent()->Refresh(); 
                          }
                      }
                      return;
@@ -1276,7 +1282,13 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                         // Open AddTrackDialog in edit mode for standard track
                         AddTrackDialog dlg(this);
                         dlg.SetEditMode(true);
-                        dlg.SetValues(hit->name, hit->sampleSet, hit->sampleType, 100);
+                        
+                        // Get volume from first child if available, otherwise default to 100
+                        int editVolume = 100;
+                        if (!hit->children.empty()) {
+                            editVolume = static_cast<int>(hit->children[0].gain * 100);
+                        }
+                        dlg.SetValues(hit->name, hit->sampleSet, hit->sampleType, editVolume);
                         
                         if (dlg.ShowModal() == wxID_OK)
                         {
@@ -1375,9 +1387,23 @@ void TrackList::OnMouseEvents(wxMouseEvent& evt)
                     
                     if (parent && childIdx != -1)
                     {
+                        // Adjust primaryChildIndex before deletion
+                        if (parent->primaryChildIndex == childIdx) {
+                            // Primary child is being deleted - reset to 0 or first available
+                            parent->primaryChildIndex = 0;
+                        } else if (parent->primaryChildIndex > childIdx) {
+                            // Shift down if we're deleting before the primary
+                            parent->primaryChildIndex--;
+                        }
+                        
                         parent->children.erase(parent->children.begin() + childIdx);
-                        if (parent->primaryChildIndex >= parent->children.size())
-                            parent->primaryChildIndex = std::max(0, (int)parent->children.size() - 1);
+                        
+                        // Ensure index is still valid after deletion
+                        if (!parent->children.empty() && parent->primaryChildIndex >= (int)parent->children.size()) {
+                            parent->primaryChildIndex = (int)parent->children.size() - 1;
+                        } else if (parent->children.empty()) {
+                            parent->primaryChildIndex = 0;
+                        }
                             
                         Refresh();
                         if (GetParent()) GetParent()->Refresh();

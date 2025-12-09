@@ -49,22 +49,39 @@ void EventPlaybackSource::getNextAudioBlock (const juce::AudioSourceChannelInfo&
         // Process events
         if (!track.isGrouping)
         {
-            // Standard behavior: Play track's own assigned sample
+            // Standard behavior: Play track's own assigned sample(s)
             for (const auto& event : track.events)
             {
                 auto eventStartSample = (int64_t) (event.time * currentSampleRate); 
                 
                 if (eventStartSample >= currentSample && eventStartSample < endSample)
                 {
-                    SampleRef ref;
-                    ref.set = track.sampleSet;
-                    ref.type = track.sampleType;
+                    // Helper to play a specific sample ref
+                    auto playSample = [&](SampleSet bank, SampleType type) {
+                        SampleRef ref;
+                        ref.set = bank;
+                        ref.type = type;
+                        
+                        auto* reader = sampleRegistry.getReader (ref);
+                        if (reader != nullptr)
+                        {
+                            int startOffset = (int) (eventStartSample - currentSample);
+                            activeVoices.emplace_back (Voice { reader, 0, (double)reader->sampleRate / currentSampleRate, (float)(track.gain * event.volume), startOffset });
+                        }
+                    };
                     
-                    auto* reader = sampleRegistry.getReader (ref);
-                    if (reader != nullptr)
+                    if (track.layers.empty())
                     {
-                        int startOffset = (int) (eventStartSample - currentSample);
-                        activeVoices.emplace_back (Voice { reader, 0, (double)reader->sampleRate / currentSampleRate, (float)(track.gain * event.volume), startOffset });
+                        // Fallback to single sample definition
+                        playSample(track.sampleSet, track.sampleType);
+                    }
+                    else
+                    {
+                        // Play all layers (supports grouping children with multiple samples)
+                        for (const auto& layer : track.layers)
+                        {
+                            playSample(layer.bank, layer.type);
+                        }
                     }
                 }
             }

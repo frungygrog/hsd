@@ -24,7 +24,7 @@ public:
         // Safer to find by time/properties or keep index if we are sure no other insert happens.
         // Since we are single-threaded and undo stack is strict, finding the exact event instance is safest.
         auto it = std::find_if(track->events.rbegin(), track->events.rend(), 
-            [&](const Event& e) { return e.time == evt.time && e.volume == evt.volume; });
+            [&](const Event& e) { return e.id == evt.id; });
         
         if (it != track->events.rend()) {
             track->events.erase(std::next(it).base());
@@ -64,7 +64,7 @@ public:
     void Undo() override {
         for (const auto& item : items) {
             auto it = std::find_if(item.track->events.rbegin(), item.track->events.rend(), 
-                [&](const Event& e) { return e.time == item.evt.time && e.volume == item.evt.volume; });
+                [&](const Event& e) { return e.id == item.evt.id; });
             
             if (it != item.track->events.rend()) {
                 item.track->events.erase(std::next(it).base());
@@ -97,7 +97,7 @@ public:
     void Do() override {
         for (const auto& item : items) {
              auto it = std::find_if(item.track->events.begin(), item.track->events.end(), 
-                [&](const Event& e) { return e.time == item.evt.time && e.volume == item.evt.volume; });
+                [&](const Event& e) { return e.id == item.evt.id; });
              if (it != item.track->events.end()) {
                  item.track->events.erase(it);
              }
@@ -145,7 +145,7 @@ public:
         // Remove Originals
         for (const auto& m : moves) {
              auto it = std::find_if(m.originalTrack->events.begin(), m.originalTrack->events.end(), 
-                [&](const Event& e) { return e.time == m.originalEvent.time; });
+                [&](const Event& e) { return e.id == m.originalEvent.id; });
              if (it != m.originalTrack->events.end()) m.originalTrack->events.erase(it);
         }
         
@@ -161,7 +161,7 @@ public:
         // Remove News
         for (const auto& m : moves) {
              auto it = std::find_if(m.newTrack->events.begin(), m.newTrack->events.end(), 
-                [&](const Event& e) { return e.time == m.newEvent.time; });
+                [&](const Event& e) { return e.id == m.newEvent.id; });
              if (it != m.newTrack->events.end()) m.newTrack->events.erase(it);
         }
         
@@ -207,7 +207,7 @@ public:
     void Undo() override {
         for (const auto& item : items) {
             auto it = std::find_if(item.track->events.rbegin(), item.track->events.rend(), 
-                [&](const Event& e) { return e.time == item.evt.time; });
+                [&](const Event& e) { return e.id == item.evt.id; });
             if (it != item.track->events.rend()) {
                  item.track->events.erase(std::next(it).base());
             }
