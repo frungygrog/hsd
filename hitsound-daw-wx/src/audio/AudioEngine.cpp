@@ -13,21 +13,18 @@ AudioEngine::~AudioEngine()
 
 void AudioEngine::initialize()
 {
-    
-    deviceManager.initialiseWithDefaultDevices(0, 2); 
-    
-    
+    deviceManager.initialiseWithDefaultDevices(0, 2);
+
     audioSourcePlayer.setSource(&mixer);
     deviceManager.addAudioCallback(&audioSourcePlayer);
-    
-    
+
     mixer.addInputSource(&masterTransport, false);
     mixer.addInputSource(&eventPlaybackSource, false);
-    
+
     eventPlaybackSource.setTransportSource(&masterTransport);
     eventPlaybackSource.setOffset(masterOffset);
-    
-    startTimer(10); 
+
+    startTimer(10);
 }
 
 void AudioEngine::shutdown()
@@ -60,7 +57,6 @@ void AudioEngine::SetPosition(double seconds)
 
 double AudioEngine::GetPosition() const
 {
-    
     return masterTransport.getCurrentPosition() + masterOffset;
 }
 
@@ -95,14 +91,14 @@ void AudioEngine::LoadMasterTrack(const std::string& path)
     masterTransport.stop();
     masterTransport.setSource(nullptr);
     masterReaderSource.reset();
-    
+
     juce::File file(path);
     if (!file.existsAsFile())
     {
         DBG("AudioEngine: Master track file not found: " + juce::String(path));
         return;
     }
-    
+
     auto* reader = formatManager.createReaderFor(file);
     if (reader)
     {
@@ -120,30 +116,26 @@ std::vector<float> AudioEngine::GetWaveform(int numSamples)
 {
     std::vector<float> peaks;
     if (!masterReaderSource) return peaks;
-    
+
     auto* reader = masterReaderSource->getAudioFormatReader();
     if (!reader) return peaks;
-    
+
     long long length = reader->lengthInSamples;
     int channels = reader->numChannels;
-    
+
     if (length <= 0 || channels <= 0) return peaks;
-    
-    
-    
+
     long long chunkSize = length / numSamples;
     if (chunkSize < 1) chunkSize = 1;
-    
-    
+
     juce::AudioBuffer<float> buffer(channels, (int)chunkSize);
-    
+
     long long position = 0;
     for (int i = 0; i < numSamples; ++i)
     {
         reader->read(&buffer, 0, (int)chunkSize, position, true, true);
-        
+
         float maxVal = 0.0f;
-        
         for (int c = 0; c < channels; ++c)
         {
             auto range = buffer.findMinMax(c, 0, (int)chunkSize);
@@ -151,16 +143,15 @@ std::vector<float> AudioEngine::GetWaveform(int numSamples)
             if (currMax > maxVal) maxVal = currMax;
         }
         peaks.push_back(maxVal);
-        
+
         position += chunkSize;
     }
-    
+
     return peaks;
 }
 
 void AudioEngine::hiResTimerCallback()
 {
-    
     if (looping && masterTransport.isPlaying() && loopStart >= 0 && loopEnd > loopStart)
     {
         double currentPos = masterTransport.getCurrentPosition();

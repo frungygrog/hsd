@@ -24,46 +24,41 @@ public:
     void SetPosition(double seconds);
     double GetPosition() const;
     double GetDuration() const;
-    
-    
+
     void hiResTimerCallback() override;
 
     void SetTracks(std::vector<Track>* tracks);
-    
-    
+
+    // Call after modifying tracks from UI thread to sync with audio thread
     void NotifyTracksChanged();
-    
+
     void SetLooping(bool looping);
     void SetLoopPoints(double start, double end);
-    
+
     SampleRegistry& GetSampleRegistry() { return sampleRegistry; }
 
-    
     void LoadMasterTrack(const std::string& path);
     std::vector<float> GetWaveform(int numSamples);
-    
-    
-    void SetMasterVolume(float volume);  
-    void SetEffectsVolume(float volume); 
-    
+
+    void SetMasterVolume(float volume);
+    void SetEffectsVolume(float volume);
+
 private:
     juce::AudioDeviceManager deviceManager;
     juce::AudioSourcePlayer audioSourcePlayer;
     juce::MixerAudioSource mixer;
     juce::AudioFormatManager formatManager;
-    
+
     juce::AudioTransportSource masterTransport;
     std::unique_ptr<juce::AudioFormatReaderSource> masterReaderSource;
-    
+
     SampleRegistry sampleRegistry;
     EventPlaybackSource eventPlaybackSource;
-    
+
     bool looping = false;
     double loopStart = 0.0;
     double loopEnd = 0.0;
-    
-    
-    
-    
+
+    // Latency compensation offset (seconds). Adjusts event playback to align with audio.
     double masterOffset = -0.029;
 };

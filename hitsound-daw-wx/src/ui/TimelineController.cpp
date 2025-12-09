@@ -16,9 +16,7 @@ void TimelineController::SetProject(Project* p)
     lastFocusedTrackId = 0;
 }
 
-
-
-
+// Selection management
 
 void TimelineController::SelectEvent(uint64_t trackId, uint64_t eventId, bool addToSelection)
 {
@@ -41,7 +39,7 @@ void TimelineController::SelectAll()
 {
     selection.clear();
     std::vector<Track*> visible = GetVisibleTracks();
-    
+
     for (Track* t : visible)
     {
         if (!t->isExpanded && !t->children.empty())
@@ -58,7 +56,7 @@ void TimelineController::SelectAll()
                 selection.insert({t->id, evt.id});
         }
     }
-    
+
     if (OnDataChanged) OnDataChanged();
 }
 
@@ -94,9 +92,7 @@ void TimelineController::MergeWithBaseSelection(const std::set<std::pair<uint64_
     }
 }
 
-
-
-
+// Clipboard operations
 
 int TimelineController::FindRowIndex(Track* t, const std::vector<Track*>& visible)
 {
@@ -117,18 +113,18 @@ int TimelineController::FindRowIndex(Track* t, const std::vector<Track*>& visibl
 void TimelineController::CopySelection(const std::vector<Track*>& visibleTracks)
 {
     if (selection.empty()) return;
-    
+
     clipboard.clear();
-    
+
     double minTime = std::numeric_limits<double>::max();
     int minRow = std::numeric_limits<int>::max();
-    
-    
+
+    // Find minimum time and row for relative positioning
     for (const auto& sel : selection)
     {
         Track* track = FindTrackById(sel.first);
         if (!track) continue;
-        
+
         for (const auto& evt : track->events)
         {
             if (evt.id == sel.second)
@@ -140,19 +136,19 @@ void TimelineController::CopySelection(const std::vector<Track*>& visibleTracks)
             }
         }
     }
-    
-    
+
+    // Create clipboard items with relative positions
     for (const auto& sel : selection)
     {
         Track* track = FindTrackById(sel.first);
         if (!track) continue;
-        
+
         for (const auto& evt : track->events)
         {
             if (evt.id == sel.second)
             {
                 int row = FindRowIndex(track, visibleTracks);
-                
+
                 ClipboardItem item;
                 item.evt = evt;
                 item.relativeRow = row - minRow;
@@ -173,7 +169,7 @@ void TimelineController::CutSelection(const std::vector<Track*>& visibleTracks)
 void TimelineController::PasteAtPlayhead(double playheadTime, const std::vector<Track*>& visibleTracks)
 {
     if (clipboard.empty()) return;
-    
+
     int anchorRow = 0;
     Track* lastFocused = FindTrackById(lastFocusedTrackId);
     if (lastFocused)
@@ -189,29 +185,29 @@ void TimelineController::PasteAtPlayhead(double playheadTime, const std::vector<
             }
         }
     }
-    
+
     std::vector<PasteEventsCommand::PasteItem> itemsToPaste;
-    
+
     for (const auto& ci : clipboard)
     {
         int targetRow = anchorRow + ci.relativeRow;
         if (targetRow < 0) targetRow = 0;
         if (targetRow >= (int)visibleTracks.size()) targetRow = (int)visibleTracks.size() - 1;
-        
+
         Track* visualTarget = visibleTracks[targetRow];
         Track* actualTarget = GetEffectiveTargetTrack(visualTarget);
         if (!actualTarget) continue;
-        
+
         Event newEvt = ci.evt;
         newEvt.time = playheadTime + ci.relativeTime;
-        
+
         itemsToPaste.push_back({actualTarget, newEvt});
     }
-    
+
     if (!itemsToPaste.empty())
     {
         auto refreshFn = [this](){ ValidateHitsounds(); if (OnDataChanged) OnDataChanged(); };
-        undoManager.PushCommand(std::make_unique<PasteEventsCommand>(itemsToPaste, 
+        undoManager.PushCommand(std::make_unique<PasteEventsCommand>(itemsToPaste,
             [](const std::vector<Track*>&){}, refreshFn));
     }
 }
@@ -219,13 +215,13 @@ void TimelineController::PasteAtPlayhead(double playheadTime, const std::vector<
 void TimelineController::DeleteSelection()
 {
     if (selection.empty()) return;
-    
+
     std::vector<RemoveEventsCommand::Item> items;
     for (const auto& sel : selection)
     {
         Track* track = FindTrackById(sel.first);
         if (!track) continue;
-        
+
         for (const auto& evt : track->events)
         {
             if (evt.id == sel.second)
@@ -235,28 +231,26 @@ void TimelineController::DeleteSelection()
             }
         }
     }
-    
+
     auto refreshFn = [this](){ selection.clear(); ValidateHitsounds(); if (OnDataChanged) OnDataChanged(); };
     undoManager.PushCommand(std::make_unique<RemoveEventsCommand>(items, refreshFn));
 }
 
-
-
-
+// Event placement
 
 void TimelineController::PlaceEvent(Track* target, double time, std::optional<SampleSet> defaultHitnormalBank)
 {
     if (!target || !project) return;
-    
+
     Event newEvt;
     newEvt.time = time;
     newEvt.volume = target->gain;
-    
+
     bool isAddition = (target->sampleType != SampleType::HitNormal);
-    
+
     if (isAddition && defaultHitnormalBank.has_value())
     {
-        
+        // Check if hitnormal already exists at this time
         bool hitnormalExists = false;
         for (auto& t : project->tracks)
         {
@@ -277,7 +271,7 @@ void TimelineController::PlaceEvent(Track* target, double time, std::optional<Sa
             }
             if (hitnormalExists) break;
         }
-        
+
         if (!hitnormalExists)
         {
             Track* hnTrack = FindOrCreateHitnormalTrack(*defaultHitnormalBank, target->gain);
@@ -286,27 +280,24 @@ void TimelineController::PlaceEvent(Track* target, double time, std::optional<Sa
                 Event hnEvt;
                 hnEvt.time = time;
                 hnEvt.volume = target->gain;
-                
+
                 std::vector<AddMultipleEventsCommand::Item> items = {
                     {hnTrack, hnEvt},
                     {target, newEvt}
                 };
-                
+
                 auto refreshFn = [this](){ ValidateHitsounds(); if (OnDataChanged) OnDataChanged(); if (OnTracksModified) OnTracksModified(); };
                 undoManager.PushCommand(std::make_unique<AddMultipleEventsCommand>(items, refreshFn));
                 return;
             }
         }
     }
-    
-    
+
     auto refreshFn = [this](){ ValidateHitsounds(); if (OnDataChanged) OnDataChanged(); };
     undoManager.PushCommand(std::make_unique<AddEventCommand>(target, newEvt, refreshFn));
 }
 
-
-
-
+// Undo/Redo
 
 void TimelineController::Undo()
 {
@@ -340,9 +331,7 @@ std::string TimelineController::GetRedoDescription() const
     return undoManager.GetRedoDescription();
 }
 
-
-
-
+// Dirty state
 
 void TimelineController::MarkClean()
 {
@@ -354,9 +343,7 @@ bool TimelineController::IsDirty() const
     return undoManager.IsDirty();
 }
 
-
-
-
+// Validation
 
 void TimelineController::ValidateHitsounds()
 {
@@ -366,14 +353,12 @@ void TimelineController::ValidateHitsounds()
     }
 }
 
-
-
-
+// Track utilities
 
 Track* TimelineController::FindTrackById(uint64_t id)
 {
     if (!project || id == 0) return nullptr;
-    
+
     std::function<Track*(std::vector<Track>&)> search = [&](std::vector<Track>& tracks) -> Track* {
         for (auto& t : tracks)
         {
@@ -383,68 +368,67 @@ Track* TimelineController::FindTrackById(uint64_t id)
         }
         return nullptr;
     };
-    
+
     return search(project->tracks);
 }
 
 Track* TimelineController::FindOrCreateHitnormalTrack(SampleSet bank, double volume)
 {
     if (!project) return nullptr;
-    
-    
+
+    // First try to find existing track with matching bank and volume
     for (auto& t : project->tracks)
     {
         if (t.sampleType == SampleType::HitNormal && t.sampleSet == bank)
         {
-            
             for (auto& child : t.children)
             {
                 if (std::abs(child.gain - volume) < 0.01)
                     return &child;
             }
-            
-            
+
+            // Fall back to primary child if no exact volume match
             if (!t.children.empty() && t.primaryChildIndex < (int)t.children.size())
                 return &t.children[t.primaryChildIndex];
         }
     }
-    
-    
+
+    // Create new track
     std::string bankStr = (bank == SampleSet::Normal) ? "normal" : (bank == SampleSet::Soft ? "soft" : "drum");
     int volPct = (int)(volume * 100);
-    
+
     Track parent;
     parent.name = bankStr + "-hitnormal";
     parent.sampleSet = bank;
     parent.sampleType = SampleType::HitNormal;
     parent.primaryChildIndex = 0;
-    
+
     Track child;
     child.name = bankStr + "-hitnormal (" + std::to_string(volPct) + "%)";
     child.sampleSet = bank;
     child.sampleType = SampleType::HitNormal;
     child.gain = volume;
     child.isChildTrack = true;
-    
+
     parent.children.push_back(child);
     project->tracks.push_back(parent);
-    
+
     if (OnTracksModified) OnTracksModified();
-    
+
     return &project->tracks.back().children[0];
 }
 
 Track* TimelineController::GetEffectiveTargetTrack(Track* t)
 {
     if (!t) return nullptr;
-    
+
     if (!t->children.empty() && !t->isExpanded)
     {
         int idx = t->primaryChildIndex;
         if (idx >= 0 && idx < (int)t->children.size())
             return &t->children[idx];
     }
-    
+
     return t;
 }
 
@@ -452,7 +436,7 @@ std::vector<Track*> TimelineController::GetVisibleTracks()
 {
     std::vector<Track*> visible;
     if (!project) return visible;
-    
+
     std::function<void(Track&)> traverse = [&](Track& t) {
         visible.push_back(&t);
         if (t.isExpanded)
@@ -460,7 +444,7 @@ std::vector<Track*> TimelineController::GetVisibleTracks()
             for (auto& c : t.children) traverse(c);
         }
     };
-    
+
     for (auto& t : project->tracks) traverse(t);
     return visible;
 }

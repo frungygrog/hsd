@@ -9,14 +9,12 @@ enum class SampleSet
 
 enum class SampleType
 {
-    
+    // Hit sounds
     HitNormal,
     HitWhistle,
     HitFinish,
     HitClap,
-    
-    
-    
+    // Slider sounds (reserved for future use)
     SliderSlide,
     SliderTick,
     SliderWhistle

@@ -12,5 +12,6 @@ public:
         std::string message;
     };
 
+    // Validates events and updates their ValidationState. Returns any errors found.
     static std::vector<ValidationError> Validate(Project& project);
 };

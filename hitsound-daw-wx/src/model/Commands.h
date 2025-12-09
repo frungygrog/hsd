@@ -5,9 +5,6 @@
 #include <vector>
 #include <functional>
 
-
-
-
 class AddEventCommand : public Command
 {
 public:
@@ -23,9 +20,7 @@ private:
     std::function<void()> refresh;
 };
 
-
-
-
+// Used for placing auto-hitnormal events together with additions
 class AddMultipleEventsCommand : public Command
 {
 public:
@@ -44,9 +39,6 @@ private:
     std::vector<Item> items;
     std::function<void()> refresh;
 };
-
-
-
 
 class RemoveEventsCommand : public Command
 {
@@ -67,18 +59,14 @@ private:
     std::function<void()> refresh;
 };
 
-
-
-
 class MoveEventsCommand : public Command
 {
 public:
     struct MoveInfo {
         Track* originalTrack;
         Event originalEvent;
-        
         Track* newTrack;
-        Event newEvent; 
+        Event newEvent;
     };
 
     MoveEventsCommand(const std::vector<MoveInfo>& moves, std::function<void()> refreshCallback);
@@ -92,9 +80,6 @@ private:
     std::function<void()> refresh;
 };
 
-
-
-
 class PasteEventsCommand : public Command
 {
 public:
@@ -102,11 +87,11 @@ public:
         Track* track;
         Event evt;
     };
-    
+
     PasteEventsCommand(const std::vector<PasteItem>& items, 
         std::function<void(const std::vector<Track*>&)> selectionCallback, 
         std::function<void()> refreshCallback);
-        
+
     void Do() override;
     void Undo() override;
     std::string GetDescription() const override;

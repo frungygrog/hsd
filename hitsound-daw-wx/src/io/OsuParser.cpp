@@ -2,19 +2,18 @@
 #include <map>
 #include <algorithm>
 
-
 static std::string getTrackKey(SampleSet set, SampleType type, const std::string& filename)
 {
     if (!filename.empty())
         return filename;
-    
+
     std::string setStr;
     switch (set) {
         case SampleSet::Normal: setStr = "normal"; break;
         case SampleSet::Soft: setStr = "soft"; break;
         case SampleSet::Drum: setStr = "drum"; break;
     }
-    
+
     std::string typeStr;
     switch (type) {
         case SampleType::HitNormal: typeStr = "hitnormal"; break;
@@ -23,7 +22,7 @@ static std::string getTrackKey(SampleSet set, SampleType type, const std::string
         case SampleType::HitClap: typeStr = "hitclap"; break;
         default: typeStr = "other"; break;
     }
-    
+
     return setStr + "-" + typeStr;
 }
 
@@ -32,25 +31,25 @@ Project OsuParser::parse(const juce::File& file)
     Project project;
     if (!file.existsAsFile())
         return project;
-        
+
     project.projectDirectory = file.getParentDirectory().getFullPathName().toStdString();
     project.projectFilePath = file.getFullPathName().toStdString();
-        
+
     juce::StringArray lines;
     file.readLines(lines);
-    
+
     using TimingPoint = Project::TimingPoint;
     std::vector<TimingPoint> timingPoints;
-    
+
     juce::String currentSection;
-    
-    
+
+    // First pass: parse metadata and timing points
     for (const auto& line : lines)
     {
         auto t = line.trim();
         if (t.startsWith("[")) { currentSection = t.removeCharacters("[]"); continue; }
-        if (t.isEmpty() || t.startsWith("
-        
+        if (t.isEmpty() || t.startsWith("//")) continue;
+
         if (currentSection == "General")
         {
             if (t.startsWith("AudioFilename:"))
@@ -82,13 +81,13 @@ Project OsuParser::parse(const juce::File& file)
             if (parts.size() >= 2)
             {
                 TimingPoint tp;
-                tp.time = parts[0].getDoubleValue(); 
+                tp.time = parts[0].getDoubleValue();
                 tp.beatLength = parts[1].getDoubleValue();
                 tp.uninherited = (tp.beatLength > 0);
                 tp.sampleSet = (parts.size() >= 4) ? parts[3].getIntValue() : 1;
                 tp.volume = (parts.size() >= 6) ? parts[5].getIntValue() : 100.0;
                 timingPoints.push_back(tp);
-                
+
                 if (tp.uninherited && tp.beatLength > 0)
                 {
                     project.bpm = 60000.0 / tp.beatLength;
@@ -97,15 +96,16 @@ Project OsuParser::parse(const juce::File& file)
             }
         }
     }
-    
+
     std::sort(timingPoints.begin(), timingPoints.end(), [](const auto& a, const auto& b){
         return a.time < b.time;
     });
-    
+
     project.timingPoints = timingPoints;
 
+    // Lambda to get timing point state at a given time
     auto getStateAt = [&](double time) -> std::pair<int, double> {
-         int sSet = 1; 
+         int sSet = 1;
          double vol = 100.0;
          for (auto it = timingPoints.rbegin(); it != timingPoints.rend(); ++it) {
              if (it->time <= time) {
@@ -117,16 +117,14 @@ Project OsuParser::parse(const juce::File& file)
          return {sSet, vol};
     };
 
-    
-    
-    
+    // Build track hierarchy from hit objects
     struct TrackData {
         SampleSet set;
         SampleType type;
         std::string filename;
         std::map<int, std::vector<Event>> eventsByVolume;
     };
-    
+
     std::map<std::string, TrackData> hierarchy;
 
     currentSection = "";
@@ -134,22 +132,22 @@ Project OsuParser::parse(const juce::File& file)
     {
         auto t = line.trim();
         if (t.startsWith("[")) { currentSection = t.removeCharacters("[]"); continue; }
-        if (t.isEmpty() || t.startsWith("
-        
+        if (t.isEmpty() || t.startsWith("//")) continue;
+
         if (currentSection == "HitObjects")
         {
             auto parts = juce::StringArray::fromTokens(t, ",", "");
             if (parts.size() >= 5)
             {
-                double time = parts[2].getDoubleValue(); 
+                double time = parts[2].getDoubleValue();
                 int type = parts[3].getIntValue();
                 int hitSound = parts[4].getIntValue();
-                
-                int normalSet = 0; 
-                int additionSet = 0; 
+
+                int normalSet = 0;
+                int additionSet = 0;
                 int volume = 0;
                 std::string filename = "";
-                
+
                 if (parts.size() > 5)
                 {
                    auto indentParts = juce::StringArray::fromTokens(parts[parts.size()-1], ":", "");
@@ -158,32 +156,29 @@ Project OsuParser::parse(const juce::File& file)
                    if (indentParts.size() >= 4) volume = indentParts[3].getIntValue();
                    if (indentParts.size() >= 5) filename = indentParts[4].toStdString();
                 }
-                
+
                 auto [inheritedSet, inheritedVol] = getStateAt(time);
                 if (volume == 0) volume = (int)inheritedVol;
-                
-                
+
+                // Resolve sample set (0 = inherit from timing point or project default)
                 auto resolve = [&](int val) {
-                    if (val == 0) { 
-                        
+                    if (val == 0) {
                         if (inheritedSet == 2) return SampleSet::Soft;
                         if (inheritedSet == 3) return SampleSet::Drum;
                         if (inheritedSet == 1) return SampleSet::Normal;
-                        
                         return project.defaultSampleSet;
                     }
                     if (val == 2) return SampleSet::Soft;
                     if (val == 3) return SampleSet::Drum;
                     return SampleSet::Normal;
                 };
-                
+
                 SampleSet finalBaseSet = resolve(normalSet);
                 SampleSet finalAddSet = (additionSet == 0) ? finalBaseSet : resolve(additionSet);
 
-                
                 auto addEvent = [&](SampleSet s, SampleType ty, const std::string& fn, double vol) {
-                    std::string key = getTrackKey(s, ty, fn); 
-                    
+                    std::string key = getTrackKey(s, ty, fn);
+
                     if (hierarchy.find(key) == hierarchy.end()) {
                         TrackData td;
                         td.set = s;
@@ -191,15 +186,15 @@ Project OsuParser::parse(const juce::File& file)
                         td.filename = fn;
                         hierarchy[key] = td;
                     }
-                    
+
                     Event e;
                     e.time = time / 1000.0;
-                    e.volume = vol / 100.0; 
-                    
+                    e.volume = vol / 100.0;
+
                     int volInt = (int)vol;
                     hierarchy[key].eventsByVolume[volInt].push_back(e);
                 };
-                
+
                 bool isSpinner = (type & 8);
                 if (!isSpinner)
                 {
@@ -211,8 +206,8 @@ Project OsuParser::parse(const juce::File& file)
             }
         }
     }
-    
-    
+
+    // Convert hierarchy to track structure
     for (auto& [key, data] : hierarchy)
     {
         Track parent;
@@ -220,9 +215,8 @@ Project OsuParser::parse(const juce::File& file)
         parent.sampleSet = data.set;
         parent.sampleType = data.type;
         parent.customFilename = data.filename;
-        parent.isExpanded = false; 
-        
-        
+        parent.isExpanded = false;
+
         for (auto& [vol, events] : data.eventsByVolume)
         {
             Track child;
@@ -231,24 +225,14 @@ Project OsuParser::parse(const juce::File& file)
             child.sampleType = data.type;
             child.customFilename = data.filename;
             child.events = events;
-            child.gain = (float)vol / 100.0f; 
-            
-            
-            
-            
-            
-            
+            child.gain = (float)vol / 100.0f;
             child.isChildTrack = true;
             parent.children.push_back(child);
         }
-        
-        
-        
+
         project.tracks.push_back(parent);
     }
-    
-    
-    
+
     return project;
 }
 
@@ -265,18 +249,17 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
     std::vector<juce::String> timingPoints;
     juce::String currentSection;
     bool inTimingPoints = false;
-    
-    
+
     for (const auto& line : lines)
     {
         auto t = line.trim();
-        if (t.startsWith("[")) 
-        { 
-            currentSection = t.removeCharacters("[]"); 
+        if (t.startsWith("["))
+        {
+            currentSection = t.removeCharacters("[]");
             inTimingPoints = (currentSection == "TimingPoints");
-            continue; 
+            continue;
         }
-        if (t.isEmpty() || t.startsWith("
+        if (t.isEmpty() || t.startsWith("//")) continue;
 
         if (currentSection == "General")
         {
@@ -294,14 +277,13 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
         }
         else if (inTimingPoints)
         {
-            timingPoints.push_back(line); 
+            timingPoints.push_back(line);
         }
     }
 
-    
     juce::String newLine = "\r\n";
     juce::String content;
-    
+
     content += "osu file format v14" + newLine;
     content += newLine;
     content += "[General]" + newLine;
@@ -315,14 +297,14 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
     content += "LetterboxInBreaks: 0" + newLine;
     content += "WidescreenStoryboard: 0" + newLine;
     content += newLine;
-    
+
     content += "[Editor]" + newLine;
     content += "DistanceSpacing: 1.0" + newLine;
     content += "BeatDivisor: 4" + newLine;
     content += "GridSize: 32" + newLine;
     content += "TimelineZoom: 1" + newLine;
     content += newLine;
-    
+
     content += "[Metadata]" + newLine;
     content += "Title:" + title + newLine;
     content += "TitleUnicode:" + title + newLine;
@@ -335,7 +317,7 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
     content += "BeatmapID:0" + newLine;
     content += "BeatmapSetID:-1" + newLine;
     content += newLine;
-    
+
     content += "[Difficulty]" + newLine;
     content += "HPDrainRate:5" + newLine;
     content += "CircleSize:5" + newLine;
@@ -344,24 +326,24 @@ bool OsuParser::CreateHitsoundDiff(const juce::File& referenceFile, const juce::
     content += "SliderMultiplier:1.4" + newLine;
     content += "SliderTickRate:1" + newLine;
     content += newLine;
-    
+
     content += "[Events]" + newLine;
-    content += "
-    content += "
-    content += "
-    content += "
-    content += "
-    content += "
-    content += "
-    content += "
+    content += "//Background and Video events" + newLine;
+    content += "//Break Periods" + newLine;
+    content += "//Storyboard Layer 0 (Background)" + newLine;
+    content += "//Storyboard Layer 1 (Fail)" + newLine;
+    content += "//Storyboard Layer 2 (Pass)" + newLine;
+    content += "//Storyboard Layer 3 (Foreground)" + newLine;
+    content += "//Storyboard Layer 4 (Overlay)" + newLine;
+    content += "//Storyboard Sound Samples" + newLine;
     content += newLine;
-    
+
     content += "[TimingPoints]" + newLine;
     for (const auto& tp : timingPoints)
         content += tp + newLine;
     content += newLine;
-    
+
     content += "[HitObjects]" + newLine;
-    
+
     return targetFile.replaceWithText(content);
 }

@@ -40,46 +40,37 @@ juce::AudioFormatReader* SampleRegistry::getReader (const SampleRef& ref)
     auto it = samples.find (key);
     if (it != samples.end())
         return it->second.reader.get();
-        
-    
-    
+
+    // Fall back to default samples
     juce::String defaultKey = juce::String (static_cast<int> (ref.set)) + "-" + juce::String (static_cast<int> (ref.type));
     auto defaultIt = defaultSamples.find (defaultKey);
     if (defaultIt != defaultSamples.end())
         return defaultIt->second.get();
-        
+
     return nullptr;
 }
 
 void SampleRegistry::loadDefaultSamples (const juce::File& dir)
 {
-    
-    
-    
-    
-    
-    
-    
-    
-    
+    // Map of all standard osu! hitsound samples
     struct DefaultDef { SampleSet set; SampleType type; juce::String filename; };
     std::vector<DefaultDef> defs = {
         { SampleSet::Normal, SampleType::HitNormal, "normal-hitnormal.wav" },
         { SampleSet::Normal, SampleType::HitWhistle, "normal-hitwhistle.wav" },
         { SampleSet::Normal, SampleType::HitFinish, "normal-hitfinish.wav" },
         { SampleSet::Normal, SampleType::HitClap, "normal-hitclap.wav" },
-        
+
         { SampleSet::Soft, SampleType::HitNormal, "soft-hitnormal.wav" },
         { SampleSet::Soft, SampleType::HitWhistle, "soft-hitwhistle.wav" },
         { SampleSet::Soft, SampleType::HitFinish, "soft-hitfinish.wav" },
         { SampleSet::Soft, SampleType::HitClap, "soft-hitclap.wav" },
-        
+
         { SampleSet::Drum, SampleType::HitNormal, "drum-hitnormal.wav" },
         { SampleSet::Drum, SampleType::HitWhistle, "drum-hitwhistle.wav" },
         { SampleSet::Drum, SampleType::HitFinish, "drum-hitfinish.wav" },
         { SampleSet::Drum, SampleType::HitClap, "drum-hitclap.wav" }
     };
-    
+
     for (const auto& def : defs)
     {
         auto file = dir.getChildFile (def.filename);

@@ -11,7 +11,7 @@ public:
 
     void addSample (const SampleRef& ref);
     juce::AudioFormatReader* getReader (const SampleRef& ref);
-    
+
     void loadDefaultSamples (const juce::File& dir);
     int getDefaultSampleCount() const { return (int)defaultSamples.size(); }
 
@@ -23,10 +23,10 @@ private:
     };
 
     std::map<juce::String, SampleEntry> samples;
-    
-    
+
+    // Built-in samples keyed by "set-type" (e.g., "0-0" for normal-hitnormal)
     std::map<juce::String, std::unique_ptr<juce::AudioFormatReader>> defaultSamples;
-    
+
     juce::AudioFormatManager formatManager;
 
     static juce::String makeKey (const SampleRef& ref);
