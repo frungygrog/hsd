@@ -9,11 +9,15 @@
 #include "../io/OsuParser.h"
 #include "../io/ProjectSaver.h"
 #include "ValidationErrorsDialog.h"
+#include "ValidationErrorsDialog.h"
 #include <wx/filename.h>
+#include "../model/HotkeyManager.h"
+#include "SettingsDialog.h"
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(wxID_OPEN, MainFrame::OnOpen)
     EVT_MENU(ID_OPEN_FOLDER, MainFrame::OnOpenFolder)
+    EVT_MENU(ID_SETTINGS, MainFrame::OnSettings)
     EVT_TIMER(ID_PLAYBACK_TIMER, MainFrame::OnTimer)
     EVT_CLOSE(MainFrame::OnClose)
 wxEND_EVENT_TABLE()
@@ -51,7 +55,28 @@ MainFrame::MainFrame()
         wxMessageBox("Could not find 'Resources' folder containing samples.", "Warning", wxICON_WARNING);
     }
     
+    // Initialize Hotkey Defaults
+    std::vector<HotkeyManager::CommandInfo> defaults = {
+        { wxID_OPEN, "Open File", "Open an .osu file", wxAcceleratorEntry(wxACCEL_CTRL, 'O', wxID_OPEN) },
+        { ID_SAVE, "Save", "Save project", wxAcceleratorEntry(wxACCEL_CTRL, 'S', ID_SAVE) },
+        { ID_UNDO, "Undo", "Undo last action", wxAcceleratorEntry(wxACCEL_CTRL, 'Z', ID_UNDO) },
+        { ID_REDO, "Redo", "Redo last action", wxAcceleratorEntry(wxACCEL_CTRL, 'Y', ID_REDO) },
+        { ID_CUT, "Cut", "Cut selection", wxAcceleratorEntry(wxACCEL_CTRL, 'X', ID_CUT) },
+        { ID_COPY, "Copy", "Copy selection", wxAcceleratorEntry(wxACCEL_CTRL, 'C', ID_COPY) },
+        { ID_PASTE, "Paste", "Paste from clipboard", wxAcceleratorEntry(wxACCEL_CTRL, 'V', ID_PASTE) },
+        { ID_DELETE_SELECTION, "Delete", "Delete selection", wxAcceleratorEntry(wxACCEL_NORMAL, WXK_DELETE, ID_DELETE_SELECTION) },
+        { ID_SELECT_ALL, "Select All", "Select all events", wxAcceleratorEntry(wxACCEL_CTRL, 'A', ID_SELECT_ALL) },
+        { ID_PLAY_STOP, "Play/Stop", "Toggle playback", wxAcceleratorEntry(wxACCEL_NORMAL, WXK_SPACE, ID_PLAY_STOP) },
+        { ID_BANK_NORMAL, "Bank: Normal", "Switch to Normal bank", wxAcceleratorEntry(wxACCEL_NORMAL, 'W', ID_BANK_NORMAL) },
+        { ID_BANK_SOFT, "Bank: Soft", "Switch to Soft bank", wxAcceleratorEntry(wxACCEL_NORMAL, 'E', ID_BANK_SOFT) },
+        { ID_BANK_DRUM, "Bank: Drum", "Switch to Drum bank", wxAcceleratorEntry(wxACCEL_NORMAL, 'R', ID_BANK_DRUM) }
+    };
+    HotkeyManager::Get().Initialize(defaults);
+    
     BuildMenu();
+    
+    // Apply hotkeys to frame
+    HotkeyManager::Get().ApplyTo(this);
     
     wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
     
@@ -142,6 +167,18 @@ MainFrame::MainFrame()
     };
 
     playbackTimer.Start(30); 
+    
+    // Accelerators for Quick Bank Switching
+    wxAcceleratorEntry entries[3];
+    entries[0].Set(wxACCEL_NORMAL, 'W', ID_BANK_NORMAL);
+    entries[1].Set(wxACCEL_NORMAL, 'E', ID_BANK_SOFT);
+    entries[2].Set(wxACCEL_NORMAL, 'R', ID_BANK_DRUM);
+    wxAcceleratorTable accel(3, entries);
+    SetAcceleratorTable(accel);
+    
+    Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->SetDefaultBank(SampleSet::Normal); }, ID_BANK_NORMAL);
+    Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->SetDefaultBank(SampleSet::Soft); }, ID_BANK_SOFT);
+    Bind(wxEVT_MENU, [this](wxCommandEvent&){ transportPanel->SetDefaultBank(SampleSet::Drum); }, ID_BANK_DRUM);
 }
 
 void MainFrame::BuildMenu()
@@ -155,6 +192,8 @@ void MainFrame::BuildMenu()
     fileMenu->AppendSeparator();
     fileMenu->Append(ID_SAVE, "&Save\tCtrl+S", "Save the project");
     fileMenu->Append(ID_SAVE_AS, "Save &As...\tCtrl+Shift+S", "Save the project as a new file");
+    fileMenu->AppendSeparator();
+    fileMenu->Append(ID_SETTINGS, "Settings...", "Configure application settings");
     fileMenu->AppendSeparator();
     fileMenu->Append(wxID_EXIT, "E&xit\tAlt+X", "Quit this program");
     menuBar->Append(fileMenu, "&File");
@@ -208,6 +247,7 @@ void MainFrame::BuildMenu()
     Bind(wxEVT_MENU, &MainFrame::OnCreatePreset, this, ID_CREATE_PRESET);
     Bind(wxEVT_MENU, &MainFrame::OnSave, this, ID_SAVE);
     Bind(wxEVT_MENU, &MainFrame::OnSaveAs, this, ID_SAVE_AS);
+    Bind(wxEVT_MENU, &MainFrame::OnSettings, this, ID_SETTINGS);
 }
 
 void MainFrame::OnOpen(wxCommandEvent& evt)
@@ -613,4 +653,10 @@ void MainFrame::OnClose(wxCloseEvent& evt)
     }
     
     evt.Skip(); 
+}
+
+void MainFrame::OnSettings(wxCommandEvent& evt)
+{
+    SettingsDialog dlg(this);
+    dlg.ShowModal();
 }

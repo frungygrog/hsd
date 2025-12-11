@@ -100,6 +100,7 @@ private:
     wxPoint dragStartPos; 
     uint64_t dragStartTrackId = 0;
     double dragStartTime = 0.0;
+    double lastPaintedTime = -1.0;
     
     struct DragGhost {
         Event evt;

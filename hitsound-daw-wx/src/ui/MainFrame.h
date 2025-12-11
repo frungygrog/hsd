@@ -18,6 +18,7 @@ public:
         ID_OPEN_FOLDER = 10001,
         ID_SAVE,
         ID_SAVE_AS,
+        ID_SETTINGS,
         ID_PLAYBACK_TIMER = 10002,
         
         
@@ -36,7 +37,11 @@ public:
         
         ID_LOAD_PRESET = 10300,
         ID_PRESET_GENERIC,
-        ID_CREATE_PRESET
+        ID_CREATE_PRESET,
+        
+        ID_BANK_NORMAL,
+        ID_BANK_SOFT,
+        ID_BANK_DRUM
     };
     
 private:
@@ -54,6 +59,7 @@ private:
     void OnClose(wxCloseEvent& evt);
     void ApplyPreset(const std::string& presetName);
 
+    void OnSettings(wxCommandEvent& evt);
     
     bool PerformSave(const juce::File& file);
 

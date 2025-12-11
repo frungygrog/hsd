@@ -348,3 +348,21 @@ void TransportPanel::OnEffectsVolumeChange(wxCommandEvent& evt)
     float volume = effectsVolumeSlider->GetValue() / 100.0f;
     audioEngine->SetEffectsVolume(volume);
 }
+
+void TransportPanel::SetDefaultBank(SampleSet bank)
+{
+    int selection = 0;
+    switch (bank)
+    {
+        case SampleSet::Normal: selection = 1; break;
+        case SampleSet::Soft:   selection = 2; break;
+        case SampleSet::Drum:   selection = 3; break;
+    }
+    
+    if (defaultBankChoice->GetSelection() != selection)
+    {
+        defaultBankChoice->SetSelection(selection);
+        wxCommandEvent evt;
+        OnDefaultBankChange(evt);
+    }
+}

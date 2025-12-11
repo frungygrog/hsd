@@ -443,6 +443,7 @@ TimelineView uses extracted helper methods for maintainability:
 | **Painting** | `DrawRuler()`, `DrawMasterTrack()`, `DrawTrackBackgrounds()`, `DrawGrid()`, `DrawTimingPoints()`, `DrawEvents()`, `DrawLoopRegion()`, `DrawDragGhosts()`, `DrawMarquee()`, `DrawPlayhead()` |
 | **Mouse Events** | `HandleLeftDown()`, `HandleDragging()`, `HandleLeftUp()`, `HandleRightDown()` |
 | **Event Placement** | `PlaceEvent()` - handles auto-hitnormal logic |
+| **Painting** | Smart Paint logic in `HandleDragging()` prevents duplicates while dragging |
 
 **Coordinate System:**
 - X-axis: Time (pixels = time × pixelsPerSecond)
@@ -489,6 +490,11 @@ When `defaultHitnormalBank` is set and placing an addition:
 2. Check if any hitnormal exists at that timestamp (any bank)
 3. If not, add both hitnormal and addition events together
 4. Uses `AddMultipleEventsCommand` for atomic undo
+
+**Smart Paint Mode:**
+When the Draw tool is active, dragging the mouse continuously places events at grid snap intervals.
+- **Duplicate Prevention**: Logic ensures events are not placed if an event already exists at the exact timestamp for that track.
+- **Logic**: Tracks `lastPaintedTime` to ensure one placement per grid unit.
 
 **Callbacks:**
 - `OnLoopPointsChanged` - Loop region changed
@@ -582,6 +588,17 @@ Transport and tool controls at the top of the window.
 Fields: Name, Bank (dropdown), Type (dropdown), Volume (slider)
 - Edit mode: Pre-populates fields, changes button to "Save"
 
+#### SettingsDialog (SettingsDialog.h/.cpp)
+- **Central Configuration**: Accessed via File -> Settings
+- **Tabs**:
+  - **Theme**: (Placeholder) Visual theme selection
+  - **Hotkeys**: List of all commands and bindings
+- **Key Capture**: Uses `KeyCaptureDialog` to intercept raw key presses for binding
+- **Reset**: Supports resetting individual bindings or all defaults
+
+#### KeyCaptureDialog
+- Dialog that listens for `EVT_CHAR_HOOK` to capture key combinations (including modifiers) for hotkey assignment.
+
 #### AddGroupingDialog  
 Fields: Name, HitNormal Bank, Additions Bank, Whistle/Finish/Clap checkboxes, Volume
 - Creates composite tracks with multiple sample layers
@@ -598,6 +615,35 @@ Fields: Name, HitNormal Bank, Additions Bank, Whistle/Finish/Clap checkboxes, Vo
 #### ValidationErrorsDialog
 - Shows validation errors before save
 - Option to ignore and save anyway
+
+---
+
+## 7. Configuration System (model/HotkeyManager.h)
+
+### 7.1 HotkeyManager
+
+Singleton class managing application-wide keyboard shortcuts.
+
+```cpp
+struct CommandInfo {
+    int id;
+    std::string name;
+    std::string description;
+    wxAcceleratorEntry defaultEntry;
+};
+```
+
+**Responsibilities:**
+- Stores default and current bindings
+- Applies accelerator table to MainFrame
+- Provides human-readable shortcut strings (e.g., "Ctrl+Z")
+- Supports persisting configuration (future scope)
+
+**Quick Bank Switching:**
+Hardcoded defaults for fast bank selection:
+- `W`: Normal Bank
+- `E`: Soft Bank
+- `R`: Drum Bank
 
 ---
 

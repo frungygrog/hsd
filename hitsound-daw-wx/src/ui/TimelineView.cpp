@@ -647,6 +647,7 @@ void TimelineView::HandleLeftDown(wxMouseEvent& evt, const wxPoint& pos)
 
             double t = SnapToGrid(xToTime(pos.x));
             PlaceEvent(target, t);
+            lastPaintedTime = t; // Initialize painting
             return;
         }
         
@@ -682,6 +683,33 @@ void TimelineView::HandleDragging(wxMouseEvent& evt, const wxPoint& pos)
             double s = std::min(loopStart, loopEnd);
             double e = std::max(loopStart, loopEnd);
             OnLoopPointsChanged(s, e);
+        }
+    }
+    // Smart Paint Mode Logic
+    else if (currentTool == ToolType::Draw && wxGetMouseState().LeftIsDown())
+    {
+        Track* hitTrack = GetTrackAtY(pos.y);
+        if (hitTrack)
+        {
+            Track* target = GetEffectiveTargetTrack(hitTrack);
+            if (!target) target = hitTrack;
+            
+            double t = SnapToGrid(xToTime(pos.x));
+            
+            // Only paint if we moved to a new timestamp
+            if (std::abs(t - lastPaintedTime) > 0.0001)
+            {
+                // Check if an event already exists at 't' for this track to avoid duplicates during painting
+                bool exists = false;
+                for (const auto& evt : target->events) {
+                    if (std::abs(evt.time - t) < 0.001) { exists = true; break; }
+                }
+                
+                if (!exists) {
+                    PlaceEvent(target, t);
+                }
+                lastPaintedTime = t;
+            }
         }
     }
     else if (isDragging)

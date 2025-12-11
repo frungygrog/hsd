@@ -64,6 +64,12 @@ add_executable(hitsound-daw-wx
     src/io/ProjectSaver.h
     src/ui/ValidationErrorsDialog.cpp
     src/ui/ValidationErrorsDialog.h
+    src/ui/SettingsDialog.cpp
+    src/ui/SettingsDialog.h
+    src/ui/KeyCaptureDialog.cpp
+    src/ui/KeyCaptureDialog.h
+    src/model/HotkeyManager.cpp
+    src/model/HotkeyManager.h
     src/model/SampleRef.h
     src/model/SampleTypes.h
     src/model/Track.h

@@ -6,6 +6,7 @@
 #include <wx/bmpbuttn.h>
 #include <wx/artprov.h>
 #include <wx/slider.h>
+#include "../model/SampleTypes.h"
 
 class AudioEngine;
 class TimelineView;
@@ -22,6 +23,8 @@ public:
     
     void TogglePlayback();
     void Stop();
+    
+    void SetDefaultBank(SampleSet bank);
     
 private:
     void OnPlay(wxCommandEvent& evt);
